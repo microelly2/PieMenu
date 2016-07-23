@@ -309,8 +309,10 @@ def pieMenuStart():
             super(HoverButton, self).__init__()
 
         def enterEvent(self, event):
+            print "Enter event line 312"
             paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
             mode = paramGet.GetString("TriggerMode")
+            self.defaultAction().hover()
 
             if self.defaultAction().isEnabled() and mode == "Hover":
                 PieMenuInstance.hide()
@@ -321,6 +323,7 @@ def pieMenuStart():
 
         def mousePressEvent(self, event):
             paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+            print "Mouse press event line 324"
 
             mode = paramGet.GetString("TriggerMode")
 
@@ -340,6 +343,8 @@ def pieMenuStart():
             self.buttonSize = 24
             self.buttons = []
             self.visible = False
+            FreeCAD.Piemenu=self
+
 
         def add_commands(self, commands, context=False):
             paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
@@ -401,6 +406,8 @@ def pieMenuStart():
                 button.setParent(mw)
                 button.setStyleSheet(styleButton)
                 button.setAttribute(QtCore.Qt.WA_Hover)
+
+                # print ("SetDefault Action line 405",commands.index(i),commands[commands.index(i)])
                 button.setDefaultAction(commands[commands.index(i)])
 
                 button.setGeometry(0, 0, buttonSize, buttonSize)
@@ -440,6 +447,9 @@ def pieMenuStart():
                                i.property("ButtonY") + pos.y() -
                                i.size().height() / 2)
                         i.setVisible(True)
+                        
+                        
+
 
             contextPhase = paramGet.GetBool("ContextPhase")
 
@@ -730,7 +740,10 @@ def pieMenuStart():
             commands = []
 
             actionList = getActionList()
-
+            #print "toolList and actionList # line 733"
+            #print toolList
+            #for a in actionList:
+            #        print a
             for i in toolList:
                 if i in actionList:
                     commands.append(actionList[i])
@@ -1696,6 +1709,7 @@ def pieMenuStart():
         pieMenuDialog.setLayout(pieMenuDialogLayout)
         pieMenuDialog.show()
 
+
         pieMenuDialogLayout.addWidget(preferencesWidget)
 
         cBoxUpdate()
@@ -1724,7 +1738,12 @@ def pieMenuStart():
 
         actionKey = QtGui.QAction(mw)
         actionKey.setObjectName("PieMenuShortCut")
-        actionKey.setShortcut(QtGui.QKeySequence("TAB"))
+        
+        
+        paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+        key = paramGet.GetString("KeySequence","TAB")
+
+        actionKey.setShortcut(QtGui.QKeySequence(key))
         actionKey.triggered.connect(PieMenuInstance.showAtMouse)
         mw.addAction(actionKey)
 
@@ -1735,3 +1754,5 @@ def pieMenuStart():
         pass
 
 pieMenuStart()
+
+
