@@ -321,6 +321,20 @@ def pieMenuStart():
             else:
                 pass
 
+        def leaveEvent(self, event):
+            print "Leave event line 325"
+            paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+            mode = paramGet.GetString("TriggerMode")
+            self.defaultAction().hover()
+
+            if self.defaultAction().isEnabled() and mode == "Hover":
+                PieMenuInstance.hide()
+                self.defaultAction().trigger()
+                PieMenuInstance.showAtMouse()
+            else:
+                pass
+
+
         def mousePressEvent(self, event):
             paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
             print "Mouse press event line 324"
