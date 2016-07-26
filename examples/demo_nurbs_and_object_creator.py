@@ -1,7 +1,6 @@
 
 from say import *
 
-
 import FreeCAD
 import FreeCADGui
 
@@ -12,20 +11,165 @@ import PySide
 from PySide import QtCore, QtGui
 
 
+import context
+reload(context)
+
+def getPieSignatures():
+	paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
+	indexList = paramIndexGet.GetString("IndexList")
+#	print indexList
+	index=indexList.split('.,.')
+	sigs=[paramIndexGet.GetString(ix) for ix in index]
+	return sigs
+
+def getSigIndex(sig):
+	paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
+	indexList = paramIndexGet.GetString("IndexList")
+#	print indexList
+	index=indexList.split('.,.')
+	for ix in index:
+		if sig == paramIndexGet.GetString(ix) : return ix
+	ixint=[int(ix) for ix in index]
+	newix=str(max(ixint)+1)
+	print "new idex created", newix
+	return newix 
+
+
+def activatePieMenu(sig):
+
+		paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+		if sig in getPieSignatures():
+			paramGet.SetString("CurrentPie",sig)
+		else:
+			print "signature >" + sig + "< not found --> Default Pie Menu"
+			paramGet.SetString("CurrentPie",'Default')
+
+
+
+class PieAction(QtGui.QAction):
+
+
+	def __init__(self,icon,piecename,toolbar):
+
+		super(self.__class__, self).__init__(icon,piecename,toolbar)
+		self.setObjectName(piecename)
+		self.Task=None
+		self.task=None
+		self.activated.connect(self.run)
+
+
+	def run(self):
+
+		if self.task.norun(): return
+
+		if self.task.init():
+			ef=EventFilter(self.task)
+			FreeCAD.eventfilter=ef
+			QtGui.qApp.installEventFilter(ef)
+			Gui.ActiveDocument.activeView().stopAnimating()
+
+
+	def onEnter(self):
+
+		print "this is onEnter"
+		if self.Task <> None:
+			try:
+				print self.Task
+				self.task=self.Task(self)
+				self.task.init()
+			except:
+				sayexc()
+
+
+	def onLeave(self):
+
+		print "this is onleave"
+		if self.task<>None:
+			self.task.kill()
+
+
+
+
+class PieTask(object):
+
+	def __init__(self,action=None):
+		self.action=action
+
+	def norun(self):
+		return False
+
+	def init(self):
+		print "init task ..."
+		return True
+
+	def kill(self):
+		print "... cleanup and kill task finished."
+
+	def start(self):
+		print "start"
+
+	def mouseAt(self,x,y):
+		print ("process mouse position at ",x,y)
+
+	def stop(self,state):
+		print "stop state:" ,state
+
+
+
+
+class PieSingleTask(PieTask):
+
+
+	def norun(self):
+		return True
+
+	def init(self):
+		self.runpre()
+		return False
+
+	def run(self):
+		print "Pie single task - run's one time"
+
+	def onLeave(self):
+		print "this is onleave"
+
+
+class dummyTask(PieSingleTask):
+
+	def runpre(self):
+		s=' '.join([str(self.action),'\n', str(self.action.text()),':',str(self.action.toolTip())])
+		FreeCAD.Console.PrintWarning("\n" +s +"\n\n"+ "NOT yet implemented!\n")
+		setPos(x, y)
+
+
 class Pie(object):
 
-	def __init__(self,pieName,number,pieces=[]):
 
+	def __init__(self,pieName,pieces=[]):
+
+
+
+		number=getSigIndex(pieName)
 		self.pieName=pieName
-		mw = Gui.getMainWindow()
-		self.tb=QtGui.QToolBar(mw)
+#		mw = Gui.getMainWindow()
+#		self.tb=QtGui.QToolBar(mw)
+
+
+		mw=FreeCAD.Gui.getMainWindow()
+		mw.toolbar = mw.addToolBar(pieName)
+		mw.toolbar.setWindowTitle(pieName)
+
+		# mw.toolbar.show()
+		self.tb=mw.toolbar
+
 
 		paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
 		paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
 		indexList = paramIndexGet.GetString("IndexList")
 
 		paramIndexGet.SetString(str(number), self.pieName)
-		paramIndexGet.SetString("IndexList", "0.,."+str(number))
+
+		paramIndexGet.SetString("IndexList", indexList + ".,."+str(number))
 		paramGet.SetString("CurrentPie",self.pieName)
 
 		group = paramIndexGet.GetGroup(str(number))
@@ -33,7 +177,10 @@ class Pie(object):
 
 		if len(pieces)>0:
 			for p in pieces:
-				[pieceName,iconpath,tooltip,hovermethod,clickmethod]=p
+				if len(p) == 4:
+					[pieceName,iconpath,tooltip,taskClass]=p
+				else:
+					pieceName=p[0]
 
 				for i in mw.findChildren(QtGui.QAction):
 					found = False
@@ -42,17 +189,14 @@ class Pie(object):
 						action = i
 						break
 				if not found:
-					action =  QtGui.QAction(QtGui.QIcon( iconpath), pieceName, self.tb)
-
-				action.setToolTip(tooltip)
-				action.activated.connect(clickmethod)
-				action.hovered.connect(hovermethod)
-				action.setObjectName(pieceName)
+					action =  PieAction(QtGui.QIcon( iconpath), pieceName, self.tb)
+					action.setToolTip(tooltip)
+					action.Task=taskClass
 
 				self.tb.addAction(action)
-				t2 +=".,." + pieceName
-				if pieceName=='test5':
-					FreeCAD.a=action
+
+				if t2=='': t2 = pieceName
+				else: t2 += ".,." + pieceName
 
 		else: # the dummy case
 			pieceName="MyPiece2"
@@ -64,16 +208,12 @@ class Pie(object):
 					action = i
 					break
 			if not found:
-				action =  QtGui.QAction(QtGui.QIcon("icons:freecad.svg"), pieceName, self.tb)
+				action =  PieAction(QtGui.QIcon("icons:freecad.svg"), pieceName, self.tb)
 
-			myActionh = lambda: FreeCAD.Console.PrintWarning("This is my Hover Method\n")
-			myActiona =lambda:FreeCAD.Console.PrintError("This is my Click  Method\n")
+			action.setToolTip("I'm the My Piece Action XXX")
+			action.Task=PieTask
 
-			action.setToolTip("I'm the My Piece Action")
-			action.activated.connect(myActiona)
-			action.hovered.connect(myActionh)
 			action.setObjectName(pieceName)
-
 			self.tb.addAction(action)
 
 			t2 +=".,." + pieceName
@@ -81,215 +221,66 @@ class Pie(object):
 		group.SetString("ToolList", t2)
 
 
-# some dummy functions 
-myActionh = lambda: FreeCAD.Console.PrintMessage("This is my Hover Method\n")
-myActiona =lambda:FreeCAD.Console.PrintMessage("This is my Click  Method\n")
 
-myActionh2 = lambda: FreeCAD.Console.PrintWarning("This is my Hover Method\n")
-myActiona2 =lambda:FreeCAD.Console.PrintError("This is my Click  Method\n")
+#-----------------------------------------------------------------------------------------
 
-
-idir=FreeCAD.ConfigGet('UserAppData')+"/Mod/reconstruction/icons/"
-
-# dummy case
-# pie2=Pie("meineTorteABC5",15,[])
-
-
-# functions for  the nurbs scene
-
-
-def mess(m):
-	nomess()
-	FreeCAD.m=QtGui.QLabel("----------------------\n" + m +"\n----------------------")
-	FreeCAD.m.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
-	FreeCAD.m.show()
-
-def nomess():
-	try: FreeCAD.m.hide()
-	except: pass
-
-def preNurbsGrid():
-	mess("hide/unhide \n\nnurbs grid")
-
-def preNurbs():
-	mess("hide/unhide \n\nnurbs")
-
-def prePoleGrid():
-	mess("hide/unhide \n\npole grid")
-
-
-
-
-def toggleNurbsGrid():
-	nomess()
-	obj=App.ActiveDocument.getObjectsByLabel("Nurbs Grid")[0]
-	obj.ViewObject.Visibility = not obj.ViewObject.Visibility
-	mw = Gui.getMainWindow()
-	a=mw.findChildren(QtGui.QAction,"test6")
-	if not obj.ViewObject.Visibility:
-		a[0].setIcon(QtGui.QIcon(FreeCAD.ConfigGet('UserAppData')+"/Mod/reconstruction/icons/"+"eye.svg"))
-	else:
-		a[0].setIcon(QtGui.QIcon(FreeCAD.ConfigGet('UserAppData')+"/Mod/reconstruction/icons/"+"eye_closed.svg"))
-
-def togglePoleGrid():
-	nomess()
-	obj=App.ActiveDocument.getObjectsByLabel("Pole Grid")[0]
-	obj.ViewObject.Visibility = not obj.ViewObject.Visibility
-	mw = Gui.getMainWindow()
-	a=mw.findChildren(QtGui.QAction,"test8")
-	if not obj.ViewObject.Visibility:
-		a[0].setIcon(QtGui.QIcon(FreeCAD.ConfigGet('UserAppData')+"/Mod/reconstruction/icons/"+"eyepoles.svg"))
-	else:
-		a[0].setIcon(QtGui.QIcon(FreeCAD.ConfigGet('UserAppData')+"/Mod/reconstruction/icons/"+"eyepoles_closed.svg"))
-
-
-def toggleNurbs():
-	nomess()
-	print "Nurbs visibility"
-	obj=App.ActiveDocument.getObjectsByLabel("Nurbs")[0]
-	obj.ViewObject.Visibility = not obj.ViewObject.Visibility
-	mw = Gui.getMainWindow()
-	a=mw.findChildren(QtGui.QAction,"test7")
-	if not obj.ViewObject.Visibility:
-		a[0].setIcon(QtGui.QIcon(FreeCAD.ConfigGet('UserAppData')+"/Mod/reconstruction/icons/"+"eyenurbs.svg"))
-	else:
-		a[0].setIcon(QtGui.QIcon(FreeCAD.ConfigGet('UserAppData')+"/Mod/reconstruction/icons/"+"eyenurbs_closed.svg"))
-
-#---------------------------
-
-def showmouse(x,y):
-	say(["Mouse is at",x,y])
 
 class EventFilter(QtCore.QObject):
 
-	def __init__(self):
+	def __init__(self,task):
 		QtCore.QObject.__init__(self)
-		self.mouseWheel=0
 		self.enterleave=False
 		self.enterleave=True
 		self.x=0
 		self.y=0
+		self.task=task
+		self.task.start()
 
 	def eventFilter(self, o, e):
-		global lastEvent
 
-		global keyPressed2
-		global editmode
+		if e.type() == PySide.QtCore.QEvent.Type.KeyPress:
+			if e.key()== QtCore.Qt.Key_F3  or e.key()== QtCore.Qt.Key_Escape or e.key()== QtCore.Qt.Key_Plus or e.key()== QtCore.Qt.Key_Minus :
+				say("----Commit:F3 or Plus, Cancel:  ESC or Minus---")
+				state = e.key()<> QtCore.Qt.Key_Escape and e.key() <> QtCore.Qt.Key_Minus
+				QtGui.qApp.removeEventFilter(FreeCAD.eventfilter)
+				say("Eventfilter stopped.")
+				self.task.stop(state)
+				self.task.kill()
 
-		global lasttime
-		global lastkey
-
-		# http://doc.qt.io/qt-5/qevent.html
-		z=str(e.type())
-
-		event=e
-
-
-		try:
-
-			if z == 'PySide.QtCore.QEvent.Type.KeyPress':
-				if e.key()== QtCore.Qt.Key_F3  or e.key()== QtCore.Qt.Key_Escape or e.key()== QtCore.Qt.Key_Plus or e.key()== QtCore.Qt.Key_Minus :
-					say("----Commit:---F3 or Plus, Cancel:  ESC or Minus---")
-					state = e.key()<> QtCore.Qt.Key_Escape and e.key() <> QtCore.Qt.Key_Minus
-					self.task.stop(state)
-					stopEf()
-					say("Eventfilter stopped ------------")
-
-
-			if event.type() == QtCore.QEvent.MouseMove:
-				if event.buttons() == QtCore.Qt.NoButton:
-					pos = event.pos()
-					x=pos.x()
-					y=pos.y()
-					if self.x<>x or self.y<>y:
-						# showmouse(x,y)
-						self.task.mouseAt(x,y)
-						self.x=x
-						self.y=y
-
-				# wheel rotation
-
-			if event.type()== QtCore.QEvent.Type.Wheel:
-				# http://doc.qt.io/qt-4.8/qwheelevent.html
-				#FreeCAD.Console.PrintMessage(str(event.type())+ " " + str(o) +'!!\n')
-				FreeCAD.Console.PrintMessage("delta wheel: " + str(e.delta()) + " pos: " +str(e.pos()) + "\n")
-				
-				self.mouseWheel += e.delta()/120
-				FreeCAD.Console.PrintMessage("wheel: " + str(self.mouseWheel) +"\n")
-				self.modedat[self.mode]=self.mouseWheel
-				
-				# self.update()
-				
-
-
-				
-				if noDefaultWheel:
-					return True 
-				else:
-					return False
-
-			# mouse clicks
-			if event.type() == QtCore.QEvent.MouseButtonPress or \
-					event.type() == QtCore.QEvent.MouseButtonRelease or\
-					event.type() == QtCore.QEvent.MouseButtonDblClick:
-
-	#				FreeCAD.Console.PrintMessage(str(event.type())+ " " + str(o) +'!!\n')
-				pos=e.pos()
-				x=pos.x()
-				y=pos.y()
-				
-				
-				pw=o.parentWidget()
-				try:name=pw.objectName()
-				except: name=''
-				if name=='': 
-					try: name=o.objectName()
-					except: pass
-				if 0:
-					FreeCAD.Console.PrintMessage( " mouse position: xy"  +str(x) +"\n")
-					FreeCAD.Console.PrintMessage( " mouse position: " +str(e.pos()) + "\n")
-					FreeCAD.Console.PrintMessage( " widget height: " +str(o.height()) + "\n")
-					FreeCAD.Console.PrintMessage( " widget width: " +str(o.width()) + "\n")
-					FreeCAD.Console.PrintMessage( " widget position: " +str(o.pos()) + "\n")
-					#FreeCAD.Console.PrintMessage( " parent widget: " +str(o.parentWidget()) + "\n")
-				
-				if name<>'':
-					FreeCAD.Console.PrintMessage( " parent widget: " +name + "\n")
-				widget = QtGui.qApp.widgetAt(e.pos())
-	#				if widget:
-	#					FreeCAD.Console.PrintMessage("widget under mouse: " + str(widget) +" !--"+widget.objectName() +"--!\n")
-				
-				# double clicked
-				if event.type() == QtCore.QEvent.MouseButtonDblClick and event.button() == QtCore.Qt.MidButton :
-					FreeCAD.Console.PrintMessage('two\n')
-
-				# middle
-				if event.button() == QtCore.Qt.MidButton or  event.button() == QtCore.Qt.MiddleButton:
-					FreeCAD.Console.PrintMessage('!-------------------------------------!!  X middle \n')
-					
-					# wenn nicht navigation aktiv sein soll, sonst return False
-					return True
-					
-					# return QtGui.QWidget.eventFilter(self, o, e)
-
-				if event.button() == QtCore.Qt.LeftButton:
-	#					FreeCAD.Console.PrintMessage('!! X one left\n')
-					pass
-
-				# right mouse button when context menue deactivated
-				elif event.button() == QtCore.Qt.RightButton:
-					FreeCAD.Console.PrintMessage('!! X one right\n')
-
-		except:
-			sayexc()
+		if e.type() == QtCore.QEvent.MouseMove:
+			pos = e.pos()
+			x=pos.x()
+			y=pos.y()
+			if self.x<>x or self.y<>y:
+				self.task.mouseAt(x,y)
+				self.x=x
+				self.y=y
 
 		return QtGui.QWidget.eventFilter(self, o, e)
 
-#--------------------------
 
-class myTask():
+#---------------------------------------------------------
 
-	def __init__(self,name='My Task'):
+
+
+#
+# user defs
+#
+
+idir=FreeCAD.ConfigGet('UserAppData')+"/Mod/reconstruction/icons/"
+idir=FreeCAD.ConfigGet('UserAppData')+"/Mod/PieMenu/icons/"
+
+class mySingleTask(PieSingleTask):
+
+	def run(self):
+		print "My single task runs"
+
+
+class myTorusTask(PieTask):
+	''' task to create a torus and move it around, can be killed ''' 
+
+	def __init__(self,action,name='My Task'):
+		super(self.__class__, self).__init__(action)
 		self.name=name
 		self.sx=None
 		self.sy=None
@@ -333,71 +324,146 @@ class myTask():
 			App.ActiveDocument.removeObject(self.obj.Name)
 		except: sayexc()
 
-def run():
-	task=myTask("Otto")
-	FreeCAD.task=task
-	mw=QtGui.qApp
-	ef=EventFilter()
-	ef.task=task
-	task.start()
-	ef.mouseWheel=0
-	ef.modedat={}
-	FreeCAD.eventfilter=ef
-	mw.installEventFilter(ef)
-	Gui.ActiveDocument.activeView().stopAnimating()
-	print "started "
+
+
+
+def mess(m):
+	FreeCAD.m=QtGui.QLabel("----------------------\n" + m +"\n----------------------")
+	FreeCAD.m.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
+	FreeCAD.m.show()
+
+
+class  PieToggleTask(PieSingleTask):
+
+	def run(self):
+		pass
+
+	def kill(self):
+		self.runpre()
+
+
+class toggleNurbsGrid(PieToggleTask):
+
+	def runpre(self):
+		obj=App.ActiveDocument.getObjectsByLabel("Nurbs Grid")[0]
+		obj.ViewObject.Visibility = not obj.ViewObject.Visibility
+		if obj.ViewObject.Visibility:
+			self.action.setIcon(QtGui.QIcon(FreeCAD.ConfigGet('UserAppData')+"/Mod/reconstruction/icons/"+"eye.svg"))
+		else:
+			self.action.setIcon(QtGui.QIcon(FreeCAD.ConfigGet('UserAppData')+"/Mod/reconstruction/icons/"+"eye_closed.svg"))
+
+
+
+class togglePoleGrid(PieToggleTask):
+
+	def runpre(self):
+		obj=App.ActiveDocument.getObjectsByLabel("Pole Grid")[0]
+		obj.ViewObject.Visibility = not obj.ViewObject.Visibility
+		if obj.ViewObject.Visibility:
+			self.action.setIcon(QtGui.QIcon(FreeCAD.ConfigGet('UserAppData')+"/Mod/reconstruction/icons/"+"eyepoles.svg"))
+		else:
+			self.action.setIcon(QtGui.QIcon(FreeCAD.ConfigGet('UserAppData')+"/Mod/reconstruction/icons/"+"eyepoles_closed.svg"))
+
+
+
+class toggleNurbs(PieToggleTask):
+
+	def runpre(self):
+		obj=App.ActiveDocument.getObjectsByLabel("Nurbs")[0]
+		obj.ViewObject.Visibility = not obj.ViewObject.Visibility
+		if obj.ViewObject.Visibility:
+			self.action.setIcon(QtGui.QIcon(FreeCAD.ConfigGet('UserAppData')+"/Mod/reconstruction/icons/"+"eyenurbs.svg"))
+		else:
+			self.action.setIcon(QtGui.QIcon(FreeCAD.ConfigGet('UserAppData')+"/Mod/reconstruction/icons/"+"eyenurbs_closed.svg"))
 
 
 #---------------------------
 
+if 0:
+	App.newDocument("Unnamed")
+	App.setActiveDocument("Unnamed")
+	App.ActiveDocument=App.getDocument("Unnamed")
+	Gui.ActiveDocument=Gui.getDocument("Unnamed")
 
 
-'''
-def startEf():
-	mw=QtGui.qApp
-	ef=EventFilter()
-	ef.mouseWheel=0
-	ef.modedat={}
-	FreeCAD.eventfilter=ef
-	mw.installEventFilter(ef)
-	Gui.ActiveDocument.activeView().stopAnimating()
-	print "started "
-'''
+	try: App.ActiveDocument.Sphere
+	except: App.ActiveDocument.addObject("Part::Sphere","Sphere")
 
-def stopEf():
-	ef=FreeCAD.eventfilter
-	mw=QtGui.qApp
-	mw.removeEventFilter(ef)
-	print "call stopEf"
-
-App.newDocument("Unnamed")
-App.setActiveDocument("Unnamed")
-App.ActiveDocument=App.getDocument("Unnamed")
-Gui.ActiveDocument=Gui.getDocument("Unnamed")
-
-try: App.ActiveDocument.Sphere
-except: App.ActiveDocument.addObject("Part::Sphere","Sphere")
-App.ActiveDocument.recompute()
+	App.ActiveDocument.recompute()
 
 
-pie=Pie("meineTorteABC5",15,[
-		['test0', idir+"addvline.svg",'Add V-Line to Polegrid',myActiona,myActionh],
-		['test1', idir+"adduline.svg",'add U-Line to the Polegrid',myActiona,myActionh],
-#		['test2', idir+"height.svg",'change Height of the selected pole',nomess,run],
-		['test3', idir+"addout.svg",'increase distance of pole lines',nomess,myActionh],
-#		['test4', idir+"addin.svg",'increase distance of pole lines',myActiona,myActionh],
 
-		['test5', "icons:freecad.svg",'demo add and move torus',nomess,run],
-#		['test5', "icons:freecad.svg",'increase distance of pole lines',startEf,stopEf],
+# icons http://www.freecadweb.org/wiki/index.php?title=Artwork
+#-----------------------------------------------------------	
 
-		['test6', idir+"eye_closed.svg",'toggle Nurbs grid',preNurbsGrid,toggleNurbsGrid],
-		['test7', idir+"eyenurbs_closed.svg",'toggle Nurbs Visibility',preNurbs,toggleNurbs],
-		['test8', idir+"eyepoles_closed.svg",'toggle Pole Grid Vsisibility ',prePoleGrid,togglePoleGrid],
-		
+#
+# test pie menu
+#
+
+Pie('',[
+		# a action to create and move a part
+		['_My_torus',"icons:freecad.svg",'demo add and move torus',myTorusTask],
+		# syntax of :
+		# [ 'action name', 'icon', 'tooltipp', classForBehaviour]
+
+		['_My_nurbs_grid', idir+"eye.svg",'toggle Nurbs grid',toggleNurbsGrid],
+		['_My_nurbs_view', idir+"eyenurbs.svg",'toggle Nurbs Visibility',toggleNurbs],
+		['_My_nurbs_poles', idir+"eyepoles.svg",'toggle Pole Grid Vsisibility ',togglePoleGrid],
+
+		# some predefined actions
+		['Std_ViewFront'],
+		['Std_ViewTop'],
+		['Std_ViewFitSelection'],
+
+		['Part_Torus']
 	])
 
 
+Pie('Feature:Edge',[
+		['_My_add_Edge', idir+"add_edge.svg",'add edge',dummyTask],
+		['_My_delete_Edge', idir+"delete_edge.svg",'delete selected edge',dummyTask],
+		['_My_move_Edge', idir+"move_edge.svg",'move the edge',dummyTask],
+		['_My_elevate_Edge', idir+"elevate_edge.svg",'elevate the edge',dummyTask],
+
+		['_My_show_curvature', idir+"curvature.svg",'show curvature and torsion',dummyTask],
+		['_My_nurbs_grid', idir+"eye.svg",'toggle Nurbs grid',toggleNurbsGrid],
+		['_My_nurbs_view', idir+"eyenurbs.svg",'toggle Nurbs Visibility',toggleNurbs],
+		['Std_ViewTop'],
+	])
+
+pie=Pie('Feature:Edge,Edge',[
+		['_My_move_Edges', idir+"move_edge.svg",'move both edges',dummyTask],
+		['_My_elevate_Edges', idir+"elevate_edges.svg",'change height of both edges',dummyTask],
+		['_My_press_Edges', idir+"press_edges.svg",'reduce distance between both edges',dummyTask],
+		['_My_wide_Edges', idir+"wide_edges.svg",'increase distance between both edges',dummyTask],
+
+		['_My_nurbs_grid', idir+"eye.svg",'toggle Nurbs grid',toggleNurbsGrid],
+		['_My_nurbs_view', idir+"eyenurbs.svg",'toggle Nurbs Visibility',toggleNurbs],
+		['Std_ViewTop'],
+	])
 
 
+Pie('Feature:Edge,Edge,Edge',[
+		['_My_move_inner_Edge', idir+"move_inner_edge.svg",'move the inner segement',dummyTask],
+		['_My_elevate_inner_Edge', idir+"elevate_inner_edge.svg",'elevate the inner segment',dummyTask],
+		['_My_nurbs_grid', idir+"eye.svg",'toggle Nurbs grid',toggleNurbsGrid],
+		['_My_nurbs_view', idir+"eyenurbs.svg",'toggle Nurbs Visibility',toggleNurbs],
+
+		['Std_ViewTop'],
+		['Std_ViewFront'],
+	])
+
+
+Pie('Feature:Edge,Edge,Edge,Edge',[
+		['_My_move_Rectangle', idir+"move_rectangle.svg",'move the complete rectangle',dummyTask],
+		['_My_elevate_Rectangle', idir+"elevate_rectangle.svg",'elevate the complete rectangle',dummyTask],
+		['_My_smooth_Rectangle', idir+"smooth_rectangle.svg",'smooth or sharp the edges of the  rectangle',dummyTask],
+		['_My_circle_Rectangle', idir+"circle_rectangle.svg",'rectangle to square',dummyTask],
+
+		['_My_nurbs_grid', idir+"eye.svg",'toggle Nurbs grid',toggleNurbsGrid],
+		['_My_nurbs_view', idir+"eyenurbs.svg",'toggle Nurbs Visibility',toggleNurbs],
+		['Std_ViewTop'],
+		['Std_ViewFront'],
+	])
 
 
