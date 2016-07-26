@@ -24,1807 +24,1894 @@
 # http://www.freecadweb.org/wiki/index.php?title=Code_snippets
 
 
+##+
 import context
 reload(context)
 
 def getPieSignatures():
-	paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
-	indexList = paramIndexGet.GetString("IndexList")
-#	print indexList
-	index=indexList.split('.,.')
-	sigs=[paramIndexGet.GetString(ix) for ix in index]
-	return sigs
+    paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
+    indexList = paramIndexGet.GetString("IndexList")
+#   print indexList
+    index=indexList.split('.,.')
+    sigs=[paramIndexGet.GetString(ix) for ix in index]
+    return sigs
 
 def getSigIndex(sig):
-	paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
-	indexList = paramIndexGet.GetString("IndexList")
-#	print indexList
-	index=indexList.split('.,.')
-	for ix in index:
-		if sig == paramIndexGet.GetString(ix) : return ix
-	ixint=[int(ix) for ix in index]
-	newix=str(max(ixint)+1)
-	print "new idex created", newix
-	return newix 
+    paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
+    indexList = paramIndexGet.GetString("IndexList")
+#   print indexList
+    index=indexList.split('.,.')
+    for ix in index:
+        if sig == paramIndexGet.GetString(ix) : return ix
+    ixint=[int(ix) for ix in index]
+    newix=str(max(ixint)+1)
+    print "new idex created", newix
+    return newix 
 
 
 def activatePieMenu(sig):
 
-		paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
-		if sig in getPieSignatures():
-			paramGet.SetString("CurrentPie",sig)
-		else:
-			print "signature >" + sig + "< not found, use Default Pie Menu!"
-			paramGet.SetString("CurrentPie",'Default')
-
+        if sig=='': sig='No Selection'
+        paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+        if sig in getPieSignatures():
+            paramGet.SetString("CurrentPie",sig)
+        else:
+            print "signature >" + sig + "< not found, use Default Pie Menu!"
+            paramGet.SetString("CurrentPie",'Default')
+##-
 
 def pieMenuStart():
-	global activatePieMenu
-	global context
-	global getPieSignatures
-	global getSigIndex
+##+
+    global activatePieMenu
+    global context
+    global getPieSignatures
+    global getSigIndex
+##-
+    import math
+    import operator
+    import platform
+    import FreeCAD as App
+    import FreeCADGui as Gui
+    from PySide import QtCore
+    from PySide import QtGui
 
-	import math
-	import operator
-	import FreeCAD as App
-	import FreeCADGui as Gui
-	from PySide import QtCore
-	from PySide import QtGui
+    styleButton = ("""
+        QToolButton {
+            background-color: lightGray;
+            border: 1px outset silver;
+        }
 
+        QToolButton:disabled {
+            background-color: darkGray;
+        }
 
+        QToolButton:hover {
+            background-color: lightBlue;
+        }
 
+        QToolButton:checked {
+            background-color: lightGreen;
+        }
 
-	styleButton = ("""
-		QToolButton {
-			background-color: lightGray;
-			border: none;
-		}
+        QToolButton::menu-indicator {
+            subcontrol-origin: padding;
+            subcontrol-position: center center;
+        }
 
-		QToolButton:disabled {
-			background-color: darkGray;
-		}
+        """)
 
-		QToolButton:hover {
-			background-color: lightBlue;
-		}
+    styleMenuClose = ("""
+        QToolButton {
+            background-color: rgba(60,60,60,235);
+            border: 1px solid #1e1e1e;
+        }
 
-		QToolButton:checked {
-			background-color: lightGreen;
-		}
+        QToolButton::menu-indicator {
+            subcontrol-origin: padding;
+            subcontrol-position: center center;
+        }
 
-		""")
+        """)
 
-	styleCombo = ("""
-		QComboBox {
-			background: transparent;
-			border: 1px solid transparent;
-		}
+    styleContainer = ("QMenu{background: transparent}")
 
-		""")
+    styleCombo = ("""
+        QComboBox {
+            background: transparent;
+            border: 1px solid transparent;
+        }
 
-	styleQuickMenu = ("padding: 5px")
+        """)
 
-	iconClose = QtGui.qApp.style().standardIcon(QtGui.QStyle.SP_DialogCloseButton)
+    styleQuickMenu = ("padding: 5px")
 
+    iconClose = QtGui.qApp.style().standardIcon(QtGui.QStyle.SP_DialogCloseButton)
 
-	def quickMenu(iconSize=24, buttonSize=28):
 
-		menu = QtGui.QMenu()
-		menu.setStyleSheet(styleQuickMenu)
+    def radiusSize(buttonSize):
 
-		button = QtGui.QToolButton()
-		button.setMenu(menu)
-		button.setStyleSheet(styleButton)
-		button.setProperty("ButtonX", 0)
-		button.setProperty("ButtonY", 0)
-		button.setIconSize(QtCore.QSize(iconSize, iconSize))
-		button.setIcon(iconClose)
-		button.setGeometry(0, 0, buttonSize, buttonSize)
-		button.setPopupMode(QtGui.QToolButton
-							.ToolButtonPopupMode.DelayedPopup)
+        radius = str(buttonSize / 2)
 
-		menuMode = QtGui.QMenu()
-		menuMode.setTitle("Trigger")
+        return "QToolButton {border-radius: " + radius + "px}"
 
-		modeGroup = QtGui.QActionGroup(menuMode)
-		modeGroup.setExclusive(True)
 
-		actionPress = QtGui.QAction(modeGroup)
-		actionPress.setText("Press")
-		actionPress.setData("Press")
-		actionPress.setCheckable(True)
+    def iconSize(buttonSize):
 
-		actionHover = QtGui.QAction(modeGroup)
-		actionHover.setText("Hover")
-		actionHover.setData("Hover")
-		actionHover.setCheckable(True)
+        icon = buttonSize / 3 * 2
 
-		menuMode.addAction(actionPress)
-		menuMode.addAction(actionHover)
+        return icon
 
-		actionContext = QtGui.QAction(menu)
-		actionContext.setText("Context")
-		actionContext.setCheckable(True)
 
-		menuPieMenu = QtGui.QMenu()
-		menuPieMenu.setTitle("PieMenu")
+    def closeButton(buttonSize=32):
 
-		pieGroup = QtGui.QActionGroup(menu)
-		pieGroup.setExclusive(True)
+        icon = iconSize(buttonSize)
+        radius = radiusSize(buttonSize)
 
-		menuToolBar = QtGui.QMenu()
-		menuToolBar.setTitle("ToolBar")
+        button = QtGui.QToolButton()
+        button.setProperty("ButtonX", 0)
+        button.setProperty("ButtonY", 0)
+        button.setGeometry(0, 0, buttonSize, buttonSize)
+        button.setIconSize(QtCore.QSize(icon, icon))
+        button.setIcon(iconClose)
+        button.setStyleSheet(styleMenuClose + radius)
+        button.setAttribute(QtCore.Qt.WA_TranslucentBackground)
 
-		toolbarGroup = QtGui.QActionGroup(menuToolBar)
-		toolbarGroup.setExclusive(True)
+        def onButton():
 
-		prefAction = QtGui.QAction(menu)
-		prefAction.setIconText("Preferences")
+            PieMenuInstance.hide()
 
-		prefButton = QtGui.QToolButton()
-		prefButton.setDefaultAction(prefAction)
+        button.clicked.connect(onButton)
 
-		prefButtonWidgetAction = QtGui.QWidgetAction(menu)
-		prefButtonWidgetAction.setDefaultWidget(prefButton)
+        return button
 
-		def setChecked():
-			paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
 
-			if paramGet.GetString("TriggerMode") == "Hover":
-				actionHover.setChecked(True)
-			else:
-				actionPress.setChecked(True)
+    def quickMenu(buttonSize=20):
 
-			if paramGet.GetBool("EnableContext"):
-				actionContext.setChecked(True)
-			else:
-				pass
+        radius = radiusSize(buttonSize)
 
-		setChecked()
+        menu = QtGui.QMenu()
+        menu.setStyleSheet(styleQuickMenu)
 
-		def onButton():
+        button = QtGui.QToolButton()
+        button.setMenu(menu)
+        button.setProperty("ButtonX", 0)
+        button.setProperty("ButtonY", 32)
+        button.setGeometry(0, 0, buttonSize, buttonSize)
+        button.setStyleSheet(styleMenuClose + radius)
+        button.setAttribute(QtCore.Qt.WA_TranslucentBackground)
+        button.setPopupMode(QtGui.QToolButton
+                            .ToolButtonPopupMode.InstantPopup)
 
-			PieMenuInstance.showAtMouse()
+        menuMode = QtGui.QMenu()
+        menuMode.setTitle("Trigger")
 
-		button.clicked.connect(onButton)
+        modeGroup = QtGui.QActionGroup(menuMode)
+        modeGroup.setExclusive(True)
 
-		def onModeGroup():
-			paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
-			text = modeGroup.checkedAction().data()
-			paramGet.SetString("TriggerMode", text)
+        actionPress = QtGui.QAction(modeGroup)
+        actionPress.setText("Press")
+        actionPress.setData("Press")
+        actionPress.setCheckable(True)
 
-			PieMenuInstance.showAtMouse()
+        actionHover = QtGui.QAction(modeGroup)
+        actionHover.setText("Hover")
+        actionHover.setData("Hover")
+        actionHover.setCheckable(True)
 
-		modeGroup.triggered.connect(onModeGroup)
+        menuMode.addAction(actionPress)
+        menuMode.addAction(actionHover)
 
-		def onActionContext():
-			paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+        actionContext = QtGui.QAction(menu)
+        actionContext.setText("Context")
+        actionContext.setCheckable(True)
 
-			if actionContext.isChecked():
-				paramGet.SetBool("EnableContext", True)
-				contextList()
-			else:
-				paramGet.SetBool("EnableContext", False)
+        menuPieMenu = QtGui.QMenu()
+        menuPieMenu.setTitle("PieMenu")
 
-			addObserver()
+        pieGroup = QtGui.QActionGroup(menu)
+        pieGroup.setExclusive(True)
 
-		actionContext.triggered.connect(onActionContext)
+        menuToolBar = QtGui.QMenu()
+        menuToolBar.setTitle("ToolBar")
 
-		def pieList():
-			paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
-			paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
-			indexList = paramIndexGet.GetString("IndexList")
+        toolbarGroup = QtGui.QActionGroup(menuToolBar)
+        toolbarGroup.setExclusive(True)
 
-			menuPieMenu.clear()
+        prefAction = QtGui.QAction(menu)
+        prefAction.setIconText("Preferences")
 
-			if indexList:
-				indexList = indexList.split(".,.")
+        prefButton = QtGui.QToolButton()
+        prefButton.setDefaultAction(prefAction)
 
-				temp = []
+        prefButtonWidgetAction = QtGui.QWidgetAction(menu)
+        prefButtonWidgetAction.setDefaultWidget(prefButton)
 
-				for i in indexList:
-					temp.append(int(i))
+        def setChecked():
+            paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
 
-				indexList = temp
-			else:
-				indexList = []
+            if paramGet.GetString("TriggerMode") == "Hover":
+                actionHover.setChecked(True)
+            else:
+                actionPress.setChecked(True)
 
-			pieList = []
+            if paramGet.GetBool("EnableContext"):
+                actionContext.setChecked(True)
+            else:
+                pass
 
-			for i in indexList:
-				a = str(i)
-				pieName = paramIndexGet.GetString(a).decode("UTF-8")
-				pieList.append(pieName)
+        setChecked()
 
-			if not paramGet.GetBool("ToolBar"):
-				text = paramGet.GetString("CurrentPie").decode("UTF-8")
-			else:
-				text = None
+        def onModeGroup():
+            paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+            text = modeGroup.checkedAction().data()
+            paramGet.SetString("TriggerMode", text)
 
-			for i in pieList:
-				action = QtGui.QAction(pieGroup)
-				action.setText(i)
-				action.setCheckable(True)
+            PieMenuInstance.hide()
+            PieMenuInstance.showAtMouse()
 
-				if i == text:
-					action.setChecked(True)
-				else:
-					pass
+        modeGroup.triggered.connect(onModeGroup)
 
-				menuPieMenu.addAction(action)
+        def onActionContext():
+            paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
 
-		menuPieMenu.aboutToShow.connect(pieList)
+            if actionContext.isChecked():
+                paramGet.SetBool("EnableContext", True)
+                contextList()
+            else:
+                paramGet.SetBool("EnableContext", False)
 
-		def onPieGroup():
-			paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+            addObserver()
 
-			paramGet.SetBool("ToolBar", False)
-			text = pieGroup.checkedAction().text().encode("UTF-8")
-			paramGet.SetString("CurrentPie", text)
+        actionContext.triggered.connect(onActionContext)
 
-			updateCommands()
+        def pieList():
+            paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+            paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
+            indexList = paramIndexGet.GetString("IndexList")
 
-			PieMenuInstance.showAtMouse()
+            menuPieMenu.clear()
 
-		pieGroup.triggered.connect(onPieGroup)
+            if indexList:
+                indexList = indexList.split(".,.")
 
-		def onMenuToolBar():
-			paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+                temp = []
 
-			menuToolBar.clear()
+                for i in indexList:
+                    temp.append(int(i))
 
-			if paramGet.GetBool("ToolBar"):
-				text = paramGet.GetString("ToolBar")
-			else:
-				text = None
+                indexList = temp
+            else:
+                indexList = []
 
-			for i in mw.findChildren(QtGui.QToolBar):
+            pieList = []
 
-				commands = []
+            for i in indexList:
+                a = str(i)
+                pieName = paramIndexGet.GetString(a).decode("UTF-8")
+                pieList.append(pieName)
 
-				for a in i.findChildren(QtGui.QToolButton):
-					try:
-						if not a.defaultAction().isSeparator():
-							if not a.menu():
-								if not a.defaultAction().menu():
-									commands.append(a.defaultAction())
-								else:
-									pass
-							else:
-								pass
-						else:
-							pass
-					except AttributeError:
-						pass
+            if not paramGet.GetBool("ToolBar"):
+                text = paramGet.GetString("CurrentPie").decode("UTF-8")
+            else:
+                text = None
 
-				if len(commands) != 0:
-					action = QtGui.QAction(toolbarGroup)
-					action.setText(i.windowTitle())
-					action.setData(i.objectName())
-					action.setCheckable(True)
-					menuToolBar.addAction(action)
+            for i in pieList:
+                action = QtGui.QAction(pieGroup)
+                action.setText(i)
+                action.setCheckable(True)
 
-					if i.objectName() == text:
-						action.setChecked(True)
-					else:
-						pass
+                if i == text:
+                    action.setChecked(True)
+                else:
+                    pass
 
-				else:
-					pass
+                menuPieMenu.addAction(action)
 
-		menuToolBar.aboutToShow.connect(onMenuToolBar)
+        menuPieMenu.aboutToShow.connect(pieList)
 
-		def onToolbarGroup():
-			paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+        def onPieGroup():
+            paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
 
-			paramGet.SetBool("ToolBar", True)
-			text = toolbarGroup.checkedAction().data()
-			paramGet.SetString("ToolBar", text)
+            paramGet.SetBool("ToolBar", False)
+            text = pieGroup.checkedAction().text().encode("UTF-8")
+            paramGet.SetString("CurrentPie", text)
 
-			updateCommands()
+            PieMenuInstance.hide()
+            PieMenuInstance.showAtMouse()
 
-			PieMenuInstance.showAtMouse()
+        pieGroup.triggered.connect(onPieGroup)
 
-		toolbarGroup.triggered.connect(onToolbarGroup)
+        def onMenuToolBar():
+            paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
 
-		def onPrefButton():
+            menuToolBar.clear()
 
-			onControl()
-			PieMenuInstance.showAtMouse()
+            if paramGet.GetBool("ToolBar"):
+                text = paramGet.GetString("ToolBar")
+            else:
+                text = None
 
-		prefButton.clicked.connect(onPrefButton)
+            for i in mw.findChildren(QtGui.QToolBar):
 
-		menu.addMenu(menuMode)
-		menu.addAction(actionContext)
-		menu.addSeparator()
-		menu.addMenu(menuPieMenu)
-		menu.addMenu(menuToolBar)
-		menu.addSeparator()
-		menu.addAction(prefButtonWidgetAction)
+                commands = []
 
-		return button
+                for a in i.findChildren(QtGui.QToolButton):
+                    try:
+                        if not a.defaultAction().isSeparator():
+                            if not a.menu():
+                                if not a.defaultAction().menu():
+                                    commands.append(a.defaultAction())
+                                else:
+                                    pass
+                            else:
+                                pass
+                        else:
+                            pass
+                    except AttributeError:
+                        pass
 
+                if len(commands) != 0:
+                    action = QtGui.QAction(toolbarGroup)
+                    action.setText(i.windowTitle())
+                    action.setData(i.objectName())
+                    action.setCheckable(True)
+                    menuToolBar.addAction(action)
 
-	class HoverButton(QtGui.QToolButton):
+                    if i.objectName() == text:
+                        action.setChecked(True)
+                    else:
+                        pass
 
-		def __init__(self, parent=None):
-			super(HoverButton, self).__init__()
+                else:
+                    pass
 
-		def enterEvent(self, event):
-			print "Enter event line 312"
-			paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
-			mode = paramGet.GetString("TriggerMode")
+        menuToolBar.aboutToShow.connect(onMenuToolBar)
 
-			try:
-				self.defaultAction().onEnter()
-				print "PieAction.onEnter executed"
-			except:
-				pass
+        def onToolbarGroup():
+            paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
 
-			if self.defaultAction().isEnabled() and mode == "Hover":
-				PieMenuInstance.hide()
-				self.defaultAction().trigger()
-				PieMenuInstance.showAtMouse()
-			else:
-				pass
+            paramGet.SetBool("ToolBar", True)
+            text = toolbarGroup.checkedAction().data()
+            paramGet.SetString("ToolBar", text)
 
-		def leaveEvent(self, event):
-			print "Leave event line 325"
-			paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
-			mode = paramGet.GetString("TriggerMode")
-			try:
-				self.defaultAction().onLeave()
-				print "PieAction.onLeave executed"
-			except:
-				pass
+            PieMenuInstance.hide()
+            PieMenuInstance.showAtMouse()
 
-			if self.defaultAction().isEnabled() and mode == "Hover":
-				PieMenuInstance.hide()
-				self.defaultAction().trigger()
-				PieMenuInstance.showAtMouse()
-			else:
-				pass
+        toolbarGroup.triggered.connect(onToolbarGroup)
 
+        def onPrefButton():
 
-		def mousePressEvent(self, event):
-			paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
-			print "Mouse press event line 324"
+            PieMenuInstance.hide()
+            onControl()
 
-			mode = paramGet.GetString("TriggerMode")
+        prefButton.clicked.connect(onPrefButton)
 
-			if self.defaultAction().isEnabled() and mode != "Hover":
-				PieMenuInstance.hide()
-				self.defaultAction().trigger()
-				PieMenuInstance.showAtMouse()
-			else:
-				pass
+        menu.addMenu(menuMode)
+        menu.addAction(actionContext)
+        menu.addSeparator()
+        menu.addMenu(menuPieMenu)
+        menu.addMenu(menuToolBar)
+        menu.addSeparator()
+        menu.addAction(prefButtonWidgetAction)
 
+        return button
 
-	class PieMenu:
 
-		def __init__(self):
+    class HoverButton(QtGui.QToolButton):
 
-			self.radius = 100
-			self.buttonSize = 24
-			self.buttons = []
-			self.visible = False
-			FreeCAD.Piemenu=self
+        def __init__(self, parent=None):
+            super(HoverButton, self).__init__()
 
+        def enterEvent(self, event):
+            paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+            mode = paramGet.GetString("TriggerMode")
+##+
+            try:
+                self.defaultAction().onEnter()
+                print "PieAction.onEnter executed"
+            except:
+                pass
+##-
+            if self.defaultAction().isEnabled() and mode == "Hover":
+                PieMenuInstance.hide()
+                self.defaultAction().trigger()
+            else:
+                pass
 
-		def add_commands(self, commands, context=False):
-			paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+        def mousePressEvent(self, event):
+            paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+            mode = paramGet.GetString("TriggerMode")
 
-			for i in self.buttons:
-				i.deleteLater()
+            if self.defaultAction().isEnabled() and mode != "Hover":
+                PieMenuInstance.hide()
+                self.defaultAction().trigger()
+            else:
+                pass
 
-			self.buttons = []
+##+
+        def leaveEvent(self, event):
+            paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+            mode = paramGet.GetString("TriggerMode")
+            try:
+                self.defaultAction().onLeave()
+                print "PieAction.onLeave executed"
+            except:
+                pass
 
-			if context:
-				group = getGroup(mode=2)
-			else:
-				group = getGroup(mode=1)
+            if self.defaultAction().isEnabled() and mode == "Hover":
+                PieMenuInstance.hide()
+                self.defaultAction().trigger()
+            else:
+                pass
+##-
 
-			if len(commands) == 0:
-				commandNumber = 1
-			else:
-				commandNumber = len(commands)
 
-			valueRadius = group.GetInt("Radius")
-			valueButton = group.GetInt("Button")
+    class PieMenu:
 
-			if paramGet.GetBool("ToolBar"):
-				valueRadius = 100
-				valueButton = 24
+        def __init__(self):
 
-			if valueRadius:
-				self.radius = valueRadius
-			else:
-				self.radius = 100
+            self.radius = 100
+            self.buttons = []
+            self.buttonSize = 32
+            self.menu = QtGui.QMenu(mw)
+            self.menuSize = 0
+            self.menu.setStyleSheet(styleContainer)
+            self.menu.setWindowFlags(self.menu.windowFlags() | QtCore.Qt.FramelessWindowHint)
+            self.menu.setAttribute(QtCore.Qt.WA_TranslucentBackground)
 
-			if valueButton:
-				self.buttonSize = valueButton
-			else:
-				self.buttonSize = 24
+            if compositingManager:
+                pass
+            else:
+                self.menu.setAttribute(QtCore.Qt.WA_PaintOnScreen)
 
-			if commandNumber == 1:
-				angle = 0
-				buttonSize = self.buttonSize
-			else:
-				angle = 2 * math.pi / commandNumber
-				buttonRadius = math.sin(angle / 2) * self.radius
-				buttonSize = math.trunc(2 * buttonRadius / math.sqrt(2))
+        def add_commands(self, commands, context=False):
+            paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
 
-			angleStart = 3 * math.pi / 2 - angle
+            for i in self.buttons:
+                i.deleteLater()
 
-			if buttonSize > self.buttonSize:
-				buttonSize = self.buttonSize
-			else:
-				pass
+            self.buttons = []
 
-			buttonSize = 40
-			iconSize = buttonSize - 4
-			self.radius = 60
+            if context:
+                group = getGroup(mode=2)
+            else:
+                group = getGroup(mode=1)
 
-			num = 1
+            if len(commands) == 0:
+                commandNumber = 1
+            else:
+                commandNumber = len(commands)
 
-			for i in commands:
+            valueRadius = group.GetInt("Radius")
+            valueButton = group.GetInt("Button")
 
-				button = HoverButton()
-				button.setParent(mw)
-				button.setStyleSheet(styleButton)
-				button.setAttribute(QtCore.Qt.WA_Hover)
-				button.setAttribute(QtCore.Qt.WA_TranslucentBackground)
+            if paramGet.GetBool("ToolBar"):
+                valueRadius = 100
+                valueButton = 32
 
-#				print ("SetDefault Action line 405",commands.index(i),commands[commands.index(i)])
-				button.setDefaultAction(commands[commands.index(i)])
+            if valueRadius:
+                self.radius = valueRadius
+            else:
+                self.radius = 100
 
-				button.setGeometry(0, 0, buttonSize, buttonSize)
+            if valueButton:
+                self.buttonSize = valueButton
+            else:
+                self.buttonSize = 32
 
-				button.setIconSize(QtCore.QSize(iconSize, iconSize))
-				button.setProperty("ButtonX", self.radius *
-								   (math.cos(angle * num + angleStart)))
-				button.setProperty("ButtonY", self.radius *
-								   (math.sin(angle * num + angleStart)))
+            if commandNumber == 1:
+                angle = 0
+                buttonSize = self.buttonSize
+            else:
+                angle = 2 * math.pi / commandNumber
+                buttonRadius = math.sin(angle / 2) * self.radius
+                buttonSize = math.trunc(2 * buttonRadius / math.sqrt(2))
 
-				self.buttons.append(button)
+            angleStart = 3 * math.pi / 2 - angle
 
-				num = num + 1
+            if buttonSize > self.buttonSize:
+                buttonSize = self.buttonSize
+            else:
+                pass
 
-			button = quickMenu()
-			button.setParent(mw)
-			self.buttons.append(button)
+            radius = radiusSize(buttonSize)
+            icon = iconSize(buttonSize)
 
-		def hide(self):
+            if windowShadow:
+                pass
+            else:
+                self.menuSize = valueRadius * 2 + buttonSize + 4
 
-			for i in self.buttons:
-				i.setVisible(False)
+                if self.menuSize < 90:
+                    self.menuSize = 90
+                else:
+                    pass
 
-		def showAtMouse(self):
+                self.menu.setMinimumWidth(self.menuSize)
+                self.menu.setMinimumHeight(self.menuSize)
 
-			activatePieMenu(context.sig())
+            num = 1
 
-			pos = mw.mapFromGlobal(QtGui.QCursor.pos())
+            for i in commands:
 
-			paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+                button = HoverButton()
+                button.setParent(self.menu)
+                button.setAttribute(QtCore.Qt.WA_Hover)
+                button.setStyleSheet(styleButton + radius)
+                button.setAttribute(QtCore.Qt.WA_TranslucentBackground)
+                button.setDefaultAction(commands[commands.index(i)])
+                button.setGeometry(0, 0, buttonSize, buttonSize)
+                button.setIconSize(QtCore.QSize(icon, icon))
+                button.setProperty("ButtonX", self.radius *
+                                   (math.cos(angle * num + angleStart)))
+                button.setProperty("ButtonY", self.radius *
+                                   (math.sin(angle * num + angleStart)))
 
-			def showHide():
-				if self.visible:
-					for i in self.buttons:
-						i.setVisible(False)
-				else:
-					for i in self.buttons:
-						i.move(i.property("ButtonX") + pos.x() -
-							   i.size().width() / 2,
-							   i.property("ButtonY") + pos.y() -
-							   i.size().height() / 2)
-						i.setVisible(True)
-						
-						
+                self.buttons.append(button)
 
+                num = num + 1
 
-			contextPhase = paramGet.GetBool("ContextPhase")
+            buttonQuickMenu = quickMenu()
+            buttonQuickMenu.setParent(self.menu)
+            self.buttons.append(buttonQuickMenu)
 
-			def togleVisible():
-				if self.visible:
-					self.visible = False
-				else:
-					self.visible = True
+            buttonClose = closeButton()
+            buttonClose.setParent(self.menu)
+            self.buttons.append(buttonClose)
 
-			if contextPhase:
-				paramGet.SetBool("ContextPhase", 0)
-				togleVisible()
-				showHide()
-			else:
-				updateCommands()
-				togleVisible()
-				showHide()
+            if compositingManager:
+                pass
+            else:
+                for i in self.buttons:
+                    i.setAttribute(QtCore.Qt.WA_PaintOnScreen)
 
-	sign = {
-		"<": operator.lt,
-		"<=": operator.le,
-		"==": operator.eq,
-		"!=": operator.ne,
-		">": operator.gt,
-		">=": operator.ge,
-		}
+        def hide(self):
 
+            for i in self.buttons:
+                i.hide()
 
-	def contextList():
-		paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
-		indexList = paramIndexGet.GetString("IndexList")
+            self.menu.hide()
 
-		contextAll.clear()
+        def showAtMouse(self):
+            paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+##+
+            activatePieMenu(context.sig())
+##-
+            contextPhase = paramGet.GetBool("ContextPhase")
 
-		if indexList:
-			indexList = indexList.split(".,.")
+            if contextPhase:
+                self.hide()
+                paramGet.SetBool("ContextPhase", 0)
+            else:
+                updateCommands()
 
-			temp = []
+            if self.menu.isVisible():
+                self.hide()
+            else:
+                if windowShadow:
+                    pos = mw.mapFromGlobal(QtGui.QCursor.pos())
 
-			for i in indexList:
-				temp.append(int(i))
+                    self.menu.popup(QtCore.QPoint(mw.pos()))
+                    self.menu.setGeometry(mw.geometry())
 
-			indexList = temp
-		else:
-			indexList = []
+                    for i in self.buttons:
+                        i.move(i.property("ButtonX") + pos.x() - i.width() / 2,
+                               i.property("ButtonY") + pos.y() - i.height() / 2)
 
-		for i in indexList:
-			a = str(i)
-			group = paramIndexGet.GetGroup(a)
-			groupContext = group.GetGroup("Context")
+                        i.setVisible(True)
 
-			if groupContext.GetBool("Enabled"):
+                    for i in self.buttons:
+                        i.repaint()
+                else:
+                    pos = QtGui.QCursor.pos()
 
-				current = {}
+                    for i in self.buttons:
+                        i.move(i.property("ButtonX") + (self.menuSize - i.size().width()) / 2,
+                               i.property("ButtonY") + (self.menuSize - i.size().height()) / 2)
 
-				current["Index"] = a
+                        i.setVisible(True)
 
-				current["VertexSign"] = groupContext.GetString("VertexSign")
-				current["VertexValue"] = groupContext.GetInt("VertexValue")
+                    self.menu.popup(QtCore.QPoint(pos.x() - self.menuSize / 2, pos.y() - self.menuSize / 2))
 
-				current["EdgeSign"] = groupContext.GetString("EdgeSign")
-				current["EdgeValue"] = groupContext.GetInt("EdgeValue")
 
-				current["FaceSign"] = groupContext.GetString("FaceSign")
-				current["FaceValue"] = groupContext.GetInt("FaceValue")
+    sign = {
+        "<": operator.lt,
+        "<=": operator.le,
+        "==": operator.eq,
+        "!=": operator.ne,
+        ">": operator.gt,
+        ">=": operator.ge,
+        }
 
-				current["ObjectSign"] = groupContext.GetString("ObjectSign")
-				current["ObjectValue"] = groupContext.GetInt("ObjectValue")
 
-				contextAll[i] = current
+    def contextList():
+        paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
+        indexList = paramIndexGet.GetString("IndexList")
 
-			else:
-				pass
+        contextAll.clear()
 
+        if indexList:
+            indexList = indexList.split(".,.")
 
-	def getContextPie(v, e, f, o):
-		global globalContextPie
-		global globalIndexPie
+            temp = []
 
-		globalContextPie = False
-		globalIndexPie = None
+            for i in indexList:
+                temp.append(int(i))
 
-		for i in contextAll:
+            indexList = temp
+        else:
+            indexList = []
 
-			current = contextAll[i]
+        for i in indexList:
+            a = str(i)
+            group = paramIndexGet.GetGroup(a)
+            groupContext = group.GetGroup("Context")
 
-			def vertex():
-				if sign[current["VertexSign"]](v, current["VertexValue"]):
-					edge()
-				else:
-					pass
+            if groupContext.GetBool("Enabled"):
 
-			def edge():
-				if sign[current["EdgeSign"]](e, current["EdgeValue"]):
-					face()
-				else:
-					pass
+                current = {}
 
-			def face():
-				if sign[current["FaceSign"]](f, current["FaceValue"]):
-					obj()
-				else:
-					pass
+                current["Index"] = a
 
-			def obj():
-				if sign[current["ObjectSign"]](o, current["ObjectValue"]):
-					global globalContextPie
-					global globalIndexPie
+                current["VertexSign"] = groupContext.GetString("VertexSign")
+                current["VertexValue"] = groupContext.GetInt("VertexValue")
 
-					globalContextPie = "True"
-					globalIndexPie = current["Index"]
-				else:
-					pass
+                current["EdgeSign"] = groupContext.GetString("EdgeSign")
+                current["EdgeValue"] = groupContext.GetInt("EdgeValue")
 
-			vertex()
+                current["FaceSign"] = groupContext.GetString("FaceSign")
+                current["FaceValue"] = groupContext.GetInt("FaceValue")
 
-		if globalContextPie == "True":
-			return globalIndexPie
-		else:
-			return None
+                current["ObjectSign"] = groupContext.GetString("ObjectSign")
+                current["ObjectValue"] = groupContext.GetInt("ObjectValue")
 
+                contextAll[i] = current
 
-	def listTopo():
-		sel = Gui.Selection.getSelectionEx()
-		paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
-		paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
+            else:
+                pass
 
-		vertexes = 0
-		edges = 0
-		faces = 0
-		objects = 0
 
-		allList = []
+    def getContextPie(v, e, f, o):
+        global globalContextPie
+        global globalIndexPie
 
-		for i in sel:
-			if not i.SubElementNames:
-				objects = objects + 1
-			else:
-				for a in i.SubElementNames:
-					allList.append(a)
+        globalContextPie = False
+        globalIndexPie = None
 
-		for i in allList:
-			if i.startswith('Vertex'):
-				vertexes = vertexes + 1
-			elif i.startswith('Edge'):
-				edges = edges + 1
-			elif i.startswith('Face'):
-				faces = faces + 1
-			else:
-				pass
+        for i in contextAll:
 
-		pieIndex = getContextPie(vertexes,
-								 edges,
-								 faces,
-								 objects)
+            current = contextAll[i]
 
-		if pieIndex:
-			pieName = paramIndexGet.GetString(pieIndex).decode("UTF-8")
-			paramGet.SetString("ContextPie", pieName.encode("UTF-8"))
-			paramGet.SetBool("ContextPhase", 1)
+            def vertex():
+                if sign[current["VertexSign"]](v, current["VertexValue"]):
+                    edge()
+                else:
+                    pass
 
-			updateCommands(context=True)
+            def edge():
+                if sign[current["EdgeSign"]](e, current["EdgeValue"]):
+                    face()
+                else:
+                    pass
 
-			PieMenuInstance.showAtMouse()
-		else:
-			pass
+            def face():
+                if sign[current["FaceSign"]](f, current["FaceValue"]):
+                    obj()
+                else:
+                    pass
 
+            def obj():
+                if sign[current["ObjectSign"]](o, current["ObjectValue"]):
+                    global globalContextPie
+                    global globalIndexPie
 
-	class SelObserver:
+                    globalContextPie = "True"
+                    globalIndexPie = current["Index"]
+                else:
+                    pass
 
-		def addSelection(self, doc, obj, sub, pnt):
+            vertex()
 
-			listTopo()
+        if globalContextPie == "True":
+            return globalIndexPie
+        else:
+            return None
 
-		def removeSelection(self, doc, obj, sub):
 
-			listTopo()
+    def listTopo():
+        sel = Gui.Selection.getSelectionEx()
+        paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+        paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
 
+        vertexes = 0
+        edges = 0
+        faces = 0
+        objects = 0
 
-	def addObserver():
-		paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+        allList = []
 
-		if paramGet.GetBool("EnableContext"):
-			Gui.Selection.addObserver(selObserver)
-		else:
-			Gui.Selection.removeObserver(selObserver)
+        for i in sel:
+            if not i.SubElementNames:
+                objects = objects + 1
+            else:
+                for a in i.SubElementNames:
+                    allList.append(a)
 
+        for i in allList:
+            if i.startswith('Vertex'):
+                vertexes = vertexes + 1
+            elif i.startswith('Edge'):
+                edges = edges + 1
+            elif i.startswith('Face'):
+                faces = faces + 1
+            else:
+                pass
 
-	def getActionList():
+        pieIndex = getContextPie(vertexes,
+                                 edges,
+                                 faces,
+                                 objects)
 
-		actions = {}
-		duplicates = []
+        if pieIndex:
+            pieName = paramIndexGet.GetString(pieIndex).decode("UTF-8")
+            paramGet.SetString("ContextPie", pieName.encode("UTF-8"))
+            paramGet.SetBool("ContextPhase", 1)
 
-		for i in mw.findChildren(QtGui.QAction):
-			if i.objectName() is not None:
-				if i.objectName() != "" and i.icon():
-					if i.objectName() in actions:
-						if i.objectName() not in duplicates:
-							duplicates.append(i.objectName())
-						else:
-							pass
-					else:
-						actions[i.objectName()] = i
-				else:
-					pass
-			else:
-				pass
+            updateCommands(context=True)
 
-		for d in duplicates:
-			del actions[d]
+            PieMenuInstance.hide()
+            PieMenuInstance.showAtMouse()
+        else:
+            pass
 
-		return actions
 
+    class SelObserver:
 
-	def updateCommands(context=False):
-		paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
-		paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
-		indexList = paramIndexGet.GetString("IndexList")
+        def addSelection(self, doc, obj, sub, pnt):
 
-		if paramGet.GetBool("ToolBar") and context is False:
+            listTopo()
 
-			commands = []
+        def removeSelection(self, doc, obj, sub):
 
-			paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+            listTopo()
 
-			toolbar = paramGet.GetString("ToolBar")
 
-			for i in mw.findChildren(QtGui.QToolBar):
-				if i.objectName() == toolbar:
-					for a in i.findChildren(QtGui.QToolButton):
-						try:
-							if not a.defaultAction().isSeparator():
-								if a.menu():
-									for b in a.menu().actions():
-										commands.append(b)
-								elif not a.defaultAction().menu():
-									commands.append(a.defaultAction())
-								else:
-									for b in a.defaultAction().menu().actions():
-										commands.append(b)
-							else:
-								pass
-						except AttributeError:
-							pass
-				else:
-					pass
+    def addObserver():
+        paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
 
-			for com in commands:
-				if not com.icon():
-					commands.remove(com)
-				else:
-					pass
-		else:
+        if paramGet.GetBool("EnableContext"):
+            Gui.Selection.addObserver(selObserver)
+        else:
+            Gui.Selection.removeObserver(selObserver)
 
-			if indexList:
-				indexList = indexList.split(".,.")
 
-				temp = []
+    def getActionList():
 
-				for i in indexList:
-					temp.append(int(i))
+        actions = {}
+        duplicates = []
 
-				indexList = temp
-			else:
-				indexList = []
+        for i in mw.findChildren(QtGui.QAction):
+            if i.objectName() is not None:
+                if i.objectName() != "" and i.icon():
+                    if i.objectName() in actions:
+                        if i.objectName() not in duplicates:
+                            duplicates.append(i.objectName())
+                        else:
+                            pass
+                    else:
+                        actions[i.objectName()] = i
+                else:
+                    pass
+            else:
+                pass
 
-			if context:
-				text = paramGet.GetString("ContextPie").decode("UTF-8")
-			else:
-				text = paramGet.GetString("CurrentPie").decode("UTF-8")
+        for d in duplicates:
+            del actions[d]
 
-			toolList = None
+        return actions
 
-			for i in indexList:
-				a = str(i)
-				pie = paramIndexGet.GetString(a).decode("UTF-8")
-				if pie == text:
-					group = paramIndexGet.GetGroup(a)
-					toolList = group.GetString("ToolList")
-				else:
-					pass
 
-			if toolList:
-				toolList = toolList.split(".,.")
-			else:
-				toolList = []
+    def updateCommands(context=False):
+        paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+        paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
+        indexList = paramIndexGet.GetString("IndexList")
 
-			commands = []
+        if paramGet.GetBool("ToolBar") and context is False:
 
-			actionList = getActionList()
-#			print "toolList and actionList # line 733"
-#			print toolList
-#			print len(actionList)
-#			for a in actionList:
-#				if a.objectName()<>'': print a.objectName()
-			for i in toolList:
-				if i in actionList:
-					commands.append(actionList[i])
-				else:
-					pass
+            commands = []
 
-		PieMenuInstance.add_commands(commands, context)
+            paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
 
+            toolbar = paramGet.GetString("ToolBar")
 
-	def getGroup(mode=0):
-		paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
-		paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
-		indexList = paramIndexGet.GetString("IndexList")
+            for i in mw.findChildren(QtGui.QToolBar):
+                if i.objectName() == toolbar:
+                    for a in i.findChildren(QtGui.QToolButton):
+                        try:
+                            if not a.defaultAction().isSeparator():
+                                if a.menu():
+                                    for b in a.menu().actions():
+                                        commands.append(b)
+                                elif not a.defaultAction().menu():
+                                    commands.append(a.defaultAction())
+                                else:
+                                    for b in a.defaultAction().menu().actions():
+                                        commands.append(b)
+                            else:
+                                pass
+                        except AttributeError:
+                            pass
+                else:
+                    pass
 
-		if mode == 2:
-			text = paramGet.GetString("ContextPie").decode("UTF-8")
-		elif mode == 1:
-			text = paramGet.GetString("CurrentPie").decode("UTF-8")
-		else:
-			text = cBox.currentText()
+            for com in commands:
+                if not com.icon():
+                    commands.remove(com)
+                else:
+                    pass
+        else:
 
-		if indexList:
-			indexList = indexList.split(".,.")
+            if indexList:
+                indexList = indexList.split(".,.")
 
-			temp = []
+                temp = []
 
-			for i in indexList:
-				temp.append(int(i))
+                for i in indexList:
+                    temp.append(int(i))
 
-			indexList = temp
-		else:
-			indexList = []
+                indexList = temp
+            else:
+                indexList = []
 
-		group = None
+            if context:
+                text = paramGet.GetString("ContextPie").decode("UTF-8")
+            else:
+                text = paramGet.GetString("CurrentPie").decode("UTF-8")
 
-		for i in indexList:
-			a = str(i)
-			pie = paramIndexGet.GetString(a).decode("UTF-8")
+            toolList = None
 
-			if pie == text:
-				group = paramIndexGet.GetGroup(a)
-			else:
-				pass
+            for i in indexList:
+                a = str(i)
+                pie = paramIndexGet.GetString(a).decode("UTF-8")
+                if pie == text:
+                    group = paramIndexGet.GetGroup(a)
+                    toolList = group.GetString("ToolList")
+                else:
+                    pass
 
-		if group:
-			pass
-		else:
-			if 0 in indexList:
-				group = paramIndexGet.GetGroup("0")
-			else:
-				setDefaultPie()
-				updateCommands()
-				group = paramIndexGet.GetGroup("0")
+            if toolList:
+                toolList = toolList.split(".,.")
+            else:
+                toolList = []
 
-		return group
+            commands = []
 
-	buttonListWidget = QtGui.QListWidget()
-	buttonListWidget.setHorizontalScrollBarPolicy(QtCore
-												  .Qt.ScrollBarAlwaysOff)
+            actionList = getActionList()
 
+            for i in toolList:
+                if i in actionList:
+                    commands.append(actionList[i])
+                else:
+                    pass
 
-	def buttonList():
-		group = getGroup()
+        PieMenuInstance.add_commands(commands, context)
 
-		toolList = group.GetString("ToolList")
 
-		if toolList:
-			toolList = toolList.split(".,.")
-		else:
-			toolList = []
+    def getGroup(mode=0):
+        paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+        paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
+        indexList = paramIndexGet.GetString("IndexList")
 
-		actionList = getActionList()
+        if mode == 2:
+            text = paramGet.GetString("ContextPie").decode("UTF-8")
+        elif mode == 1:
+            text = paramGet.GetString("CurrentPie").decode("UTF-8")
+        else:
+            text = cBox.currentText()
 
-		buttonListWidget.blockSignals(True)
+        if indexList:
+            indexList = indexList.split(".,.")
 
-		buttonListWidget.clear()
+            temp = []
 
-		for i in toolList:
-			if i in actionList:
-				item = QtGui.QListWidgetItem(buttonListWidget)
-				item.setData(QtCore.Qt.UserRole, i)
-				item.setText(actionList[i].text().replace("&", ""))
-				item.setIcon(actionList[i].icon())
-			else:
-				pass
+            for i in indexList:
+                temp.append(int(i))
 
-		buttonListWidget.blockSignals(False)
+            indexList = temp
+        else:
+            indexList = []
 
+        group = None
 
-	cBox = QtGui.QComboBox()
-	cBox.setMinimumHeight(30)
+        for i in indexList:
+            a = str(i)
+            pie = paramIndexGet.GetString(a).decode("UTF-8")
 
+            if pie == text:
+                group = paramIndexGet.GetGroup(a)
+            else:
+                pass
 
-	def cBoxUpdate():
-		paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
-		indexList = paramIndexGet.GetString("IndexList")
+        if group:
+            pass
+        else:
+            if 0 in indexList:
+                group = paramIndexGet.GetGroup("0")
+            else:
+                setDefaultPie()
+                updateCommands()
+                group = paramIndexGet.GetGroup("0")
 
-		if indexList:
-			indexList = indexList.split(".,.")
+        return group
 
-			temp = []
+    buttonListWidget = QtGui.QListWidget()
+    buttonListWidget.setHorizontalScrollBarPolicy(QtCore
+                                                  .Qt.ScrollBarAlwaysOff)
 
-			for i in indexList:
-				temp.append(int(i))
 
-			indexList = temp
-		else:
-			indexList = []
+    def buttonList():
+        group = getGroup()
 
-		pieList = []
+        toolList = group.GetString("ToolList")
 
-		for i in indexList:
-			a = str(i)
-			pieList.append(paramIndexGet.GetString(a).decode("UTF-8"))
+        if toolList:
+            toolList = toolList.split(".,.")
+        else:
+            toolList = []
 
-		pieList.reverse()
+        actionList = getActionList()
 
-		cBox.blockSignals(True)
+        buttonListWidget.blockSignals(True)
 
-		cBox.clear()
+        buttonListWidget.clear()
 
-		for i in pieList:
-			cBox.insertItem(0, i)
+        for i in toolList:
+            if i in actionList:
+                item = QtGui.QListWidgetItem(buttonListWidget)
+                item.setData(QtCore.Qt.UserRole, i)
+                item.setText(actionList[i].text().replace("&", ""))
+                item.setIcon(actionList[i].icon())
+            else:
+                pass
 
-		cBox.blockSignals(False)
+        buttonListWidget.blockSignals(False)
 
-		onPieChange()
 
+    cBox = QtGui.QComboBox()
+    cBox.setMinimumHeight(30)
 
-	def onPieChange():
-		toolList()
-		buttonList()
-		setDefaults()
-		setCheckContext()
 
-	cBox.currentIndexChanged.connect(onPieChange)
+    def cBoxUpdate():
+        paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
+        indexList = paramIndexGet.GetString("IndexList")
 
-	buttonAddPieMenu = QtGui.QToolButton()
-	buttonAddPieMenu.setText("+")
-	buttonAddPieMenu.setMinimumHeight(30)
-	buttonAddPieMenu.setMinimumWidth(30)
+        if indexList:
+            indexList = indexList.split(".,.")
 
+            temp = []
 
-	def onButtonAddPieMenu():
+            for i in indexList:
+                temp.append(int(i))
 
-		if cBox.isEditable():
-			lineEdit = cBox.lineEdit()
-			cBox.setEditable(False)
-			buttonRemovePieMenu.setEnabled(True)
-			buttonAddPieMenu.setIcon(QtGui.QIcon())
-		else:
-			cBox.setEditable(True)
-			lineEdit = cBox.lineEdit()
-			lineEdit.clear()
-			lineEdit.setFocus()
-			buttonRemovePieMenu.setEnabled(False)
-			buttonAddPieMenu.setIcon(iconClose)
+            indexList = temp
+        else:
+            indexList = []
 
-		def onReturnPressed():
-			paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
-			indexList = paramIndexGet.GetString("IndexList")
+        pieList = []
 
-			text = lineEdit.text().encode('UTF-8')
+        for i in indexList:
+            a = str(i)
+            pieList.append(paramIndexGet.GetString(a).decode("UTF-8"))
 
-			if indexList:
-				indexList = indexList.split(".,.")
+        pieList.reverse()
 
-				temp = []
+        cBox.blockSignals(True)
 
-				for i in indexList:
-					temp.append(int(i))
+        cBox.clear()
 
-				indexList = temp
+        for i in pieList:
+            cBox.insertItem(0, i)
 
-			else:
+        cBox.blockSignals(False)
 
-				indexList = []
+        onPieChange()
 
-			pieList = []
 
-			for i in indexList:
-				a = str(i)
-				pieList.append(paramIndexGet.GetString(a))
+    def onPieChange():
+        toolList()
+        buttonList()
+        setDefaults()
+        setCheckContext()
 
-			if text in pieList:
-				pass
-			elif not text:
-				pass
-			else:
+    cBox.currentIndexChanged.connect(onPieChange)
 
-				if text == "restore_default_pie" and text.lower():
-					setDefaultPie()
-				else:
-					x = 1
+    buttonAddPieMenu = QtGui.QToolButton()
+    buttonAddPieMenu.setText("+")
+    buttonAddPieMenu.setMinimumHeight(30)
+    buttonAddPieMenu.setMinimumWidth(30)
 
-					while x in indexList and x < 999:
-						x = x + 1
-					else:
-						indexNumber = x
 
-					indexList.append(indexNumber)
+    def onButtonAddPieMenu():
 
-					temp = []
+        if cBox.isEditable():
+            lineEdit = cBox.lineEdit()
+            cBox.setEditable(False)
+            buttonRemovePieMenu.setEnabled(True)
+            buttonAddPieMenu.setIcon(QtGui.QIcon())
+        else:
+            cBox.setEditable(True)
+            lineEdit = cBox.lineEdit()
+            lineEdit.clear()
+            lineEdit.setFocus()
+            buttonRemovePieMenu.setEnabled(False)
+            buttonAddPieMenu.setIcon(iconClose)
 
-					for i in indexList:
-						temp.append(str(i))
+        def onReturnPressed():
+            paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
+            indexList = paramIndexGet.GetString("IndexList")
 
-					indexList = temp
+            text = lineEdit.text().encode('UTF-8')
 
-					paramIndexGet.SetString("IndexList", ".,.".join(indexList))
+            if indexList:
+                indexList = indexList.split(".,.")
 
-					indexNumber = str(indexNumber)
-					paramIndexGet.GetGroup(indexNumber)
-					paramIndexGet.SetString(indexNumber, text)
+                temp = []
 
-				cBoxUpdate()
+                for i in indexList:
+                    temp.append(int(i))
 
-		lineEdit.returnPressed.connect(onReturnPressed)
+                indexList = temp
 
-		def onEditingFinished():
-			cBox.setEditable(False)
-			buttonRemovePieMenu.setEnabled(True)
-			buttonAddPieMenu.setIcon(QtGui.QIcon())
+            else:
 
-		lineEdit.editingFinished.connect(onEditingFinished)
+                indexList = []
 
-	buttonAddPieMenu.clicked.connect(onButtonAddPieMenu)
+            pieList = []
 
-	buttonRemovePieMenu = QtGui.QToolButton()
-	buttonRemovePieMenu.setText("-")
-	buttonRemovePieMenu.setMinimumHeight(30)
-	buttonRemovePieMenu.setMinimumWidth(30)
+            for i in indexList:
+                a = str(i)
+                pieList.append(paramIndexGet.GetString(a))
 
+            if text in pieList:
+                pass
+            elif not text:
+                pass
+            else:
 
-	def onButtonRemovePieMenu():
-		paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
-		indexList = paramIndexGet.GetString("IndexList")
+                if text == "restore_default_pie" and text.lower():
+                    setDefaultPie()
+                else:
+                    x = 1
 
-		text = cBox.currentText()
+                    while x in indexList and x < 999:
+                        x = x + 1
+                    else:
+                        indexNumber = x
 
-		if indexList:
-			indexList = indexList.split(".,.")
+                    indexList.append(indexNumber)
 
-			temp = []
+                    temp = []
 
-			for i in indexList:
-				temp.append(int(i))
+                    for i in indexList:
+                        temp.append(str(i))
 
-			indexList = temp
+                    indexList = temp
 
-		else:
+                    paramIndexGet.SetString("IndexList", ".,.".join(indexList))
 
-			indexList = []
+                    indexNumber = str(indexNumber)
+                    paramIndexGet.GetGroup(indexNumber)
+                    paramIndexGet.SetString(indexNumber, text)
 
-		for i in indexList:
-			a = str(i)
-			pie = paramIndexGet.GetString(a).decode("UTF-8")
-			if pie == text:
-				indexList.remove(i)
+                cBoxUpdate()
 
-				temp = []
+        lineEdit.returnPressed.connect(onReturnPressed)
 
-				for i in indexList:
-					temp.append(str(i))
+        def onEditingFinished():
+            cBox.setEditable(False)
+            buttonRemovePieMenu.setEnabled(True)
+            buttonAddPieMenu.setIcon(QtGui.QIcon())
 
-				indexList = temp
+        lineEdit.editingFinished.connect(onEditingFinished)
 
-				paramIndexGet.SetString("IndexList", ".,.".join(indexList))
+    buttonAddPieMenu.clicked.connect(onButtonAddPieMenu)
 
-				paramIndexGet.RemGroup(a)
-				paramIndexGet.RemString(a)
-			else:
-				pass
+    buttonRemovePieMenu = QtGui.QToolButton()
+    buttonRemovePieMenu.setText("-")
+    buttonRemovePieMenu.setMinimumHeight(30)
+    buttonRemovePieMenu.setMinimumWidth(30)
 
-		cBoxUpdate()
 
-		if cBox.currentIndex() == -1:
-			setDefaultPie()
-			cBoxUpdate()
-		else:
-			pass
+    def onButtonRemovePieMenu():
+        paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
+        indexList = paramIndexGet.GetString("IndexList")
 
-	buttonRemovePieMenu.clicked.connect(onButtonRemovePieMenu)
+        text = cBox.currentText()
 
-	labelRadius = QtGui.QLabel("Pie size")
-	spinRadius = QtGui.QSpinBox()
-	spinRadius.setMaximum(9999)
-	spinRadius.setMinimumWidth(70)
+        if indexList:
+            indexList = indexList.split(".,.")
 
+            temp = []
 
-	def onSpinRadius():
-		group = getGroup()
-		value = spinRadius.value()
-		group.SetInt("Radius", value)
+            for i in indexList:
+                temp.append(int(i))
 
-	spinRadius.valueChanged.connect(onSpinRadius)
+            indexList = temp
 
-	labelButton = QtGui.QLabel("Button size")
-	spinButton = QtGui.QSpinBox()
-	spinButton.setMaximum(999)
-	spinButton.setMinimumWidth(70)
+        else:
 
+            indexList = []
 
-	def onSpinButton():
-		group = getGroup()
-		value = spinButton.value()
-		group.SetInt("Button", value)
+        for i in indexList:
+            a = str(i)
+            pie = paramIndexGet.GetString(a).decode("UTF-8")
+            if pie == text:
+                indexList.remove(i)
 
-	spinButton.valueChanged.connect(onSpinButton)
+                temp = []
 
-	toolListWidget = QtGui.QListWidget()
-	toolListWidget.setSortingEnabled(True)
-	toolListWidget.sortItems(QtCore.Qt.AscendingOrder)
-	toolListWidget.setHorizontalScrollBarPolicy(QtCore
-												.Qt.ScrollBarAlwaysOff)
+                for i in indexList:
+                    temp.append(str(i))
 
+                indexList = temp
 
-	def toolList():
-		paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
-		indexList = paramIndexGet.GetString("IndexList")
+                paramIndexGet.SetString("IndexList", ".,.".join(indexList))
 
-		text = cBox.currentText()
+                paramIndexGet.RemGroup(a)
+                paramIndexGet.RemString(a)
+            else:
+                pass
 
-		toolListAll = getActionList()
+        cBoxUpdate()
 
-		toolListWidget.blockSignals(True)
-		toolListWidget.clear()
+        if cBox.currentIndex() == -1:
+            setDefaultPie()
+            cBoxUpdate()
+        else:
+            pass
 
-		for i in toolListAll:
-			item = QtGui.QListWidgetItem(toolListWidget)
-			item.setText(toolListAll[i].text().replace("&", ""))
-			item.setIcon(toolListAll[i].icon())
-			item.setCheckState(QtCore.Qt.CheckState(0))
-			item.setData(QtCore.Qt.UserRole, toolListAll[i].objectName())
+    buttonRemovePieMenu.clicked.connect(onButtonRemovePieMenu)
 
-		if indexList:
-			indexList = indexList.split(".,.")
+    labelRadius = QtGui.QLabel("Pie size")
+    spinRadius = QtGui.QSpinBox()
+    spinRadius.setMaximum(9999)
+    spinRadius.setMinimumWidth(70)
 
-			temp = []
 
-			for i in indexList:
-				temp.append(int(i))
+    def onSpinRadius():
+        group = getGroup()
+        value = spinRadius.value()
+        group.SetInt("Radius", value)
 
-			indexList = temp
-		else:
+    spinRadius.valueChanged.connect(onSpinRadius)
 
-			indexList = []
+    labelButton = QtGui.QLabel("Button size")
+    spinButton = QtGui.QSpinBox()
+    spinButton.setMaximum(999)
+    spinButton.setMinimumWidth(70)
 
-		toolListOn = None
 
-		for i in indexList:
-			a = str(i)
-			pie = paramIndexGet.GetString(a).decode("UTF-8")
-			if pie == text:
-				group = paramIndexGet.GetGroup(a)
-				toolListOn = group.GetString("ToolList")
-			else:
-				pass
+    def onSpinButton():
+        group = getGroup()
+        value = spinButton.value()
+        group.SetInt("Button", value)
 
-		if toolListOn:
-			toolListOn = toolListOn.split(".,.")
-		else:
-			toolListOn = []
+    spinButton.valueChanged.connect(onSpinButton)
 
-		items = []
-		for index in xrange(toolListWidget.count()):
-			items.append(toolListWidget.item(index))
+    toolListWidget = QtGui.QListWidget()
+    toolListWidget.setSortingEnabled(True)
+    toolListWidget.sortItems(QtCore.Qt.AscendingOrder)
+    toolListWidget.setHorizontalScrollBarPolicy(QtCore
+                                                .Qt.ScrollBarAlwaysOff)
 
-		for i in items:
-			if i.data(QtCore.Qt.UserRole) in toolListOn:
-				i.setCheckState(QtCore.Qt.CheckState(2))
-			else:
-				pass
 
-		toolListWidget.blockSignals(False)
+    def toolList():
+        paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
+        indexList = paramIndexGet.GetString("IndexList")
 
+        text = cBox.currentText()
 
-	def onToolListWidget():
-		paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
+        toolListAll = getActionList()
 
-		text = cBox.currentText()
+        toolListWidget.blockSignals(True)
+        toolListWidget.clear()
 
-		items = []
-		for index in xrange(toolListWidget.count()):
-			items.append(toolListWidget.item(index))
+        for i in toolListAll:
+            item = QtGui.QListWidgetItem(toolListWidget)
+            item.setText(toolListAll[i].text().replace("&", ""))
+            item.setIcon(toolListAll[i].icon())
+            item.setCheckState(QtCore.Qt.CheckState(0))
+            item.setData(QtCore.Qt.UserRole, toolListAll[i].objectName())
 
-		checkListOn = []
-		checkListOff = []
-		for i in items:
-			if i.checkState():
-				checkListOn.append(i.data(QtCore.Qt.UserRole))
-			else:
-				checkListOff.append(i.data(QtCore.Qt.UserRole))
+        if indexList:
+            indexList = indexList.split(".,.")
 
-		indexList = paramIndexGet.GetString("IndexList")
+            temp = []
 
-		if indexList:
-			indexList = indexList.split(".,.")
+            for i in indexList:
+                temp.append(int(i))
 
-			temp = []
+            indexList = temp
+        else:
 
-			for i in indexList:
-				temp.append(int(i))
+            indexList = []
 
-			indexList = temp
-		else:
-			indexList = []
+        toolListOn = None
 
-		toolList = None
+        for i in indexList:
+            a = str(i)
+            pie = paramIndexGet.GetString(a).decode("UTF-8")
+            if pie == text:
+                group = paramIndexGet.GetGroup(a)
+                toolListOn = group.GetString("ToolList")
+            else:
+                pass
 
-		for i in indexList:
-			a = str(i)
-			pie = paramIndexGet.GetString(a).decode("UTF-8")
-			if pie == text:
-				group = paramIndexGet.GetGroup(a)
-				toolList = group.GetString("ToolList")
-			else:
-				pass
+        if toolListOn:
+            toolListOn = toolListOn.split(".,.")
+        else:
+            toolListOn = []
 
-		if toolList:
-			toolList = toolList.split(".,.")
-		else:
-			toolList = []
+        items = []
+        for index in xrange(toolListWidget.count()):
+            items.append(toolListWidget.item(index))
 
-		for i in checkListOn:
-			if i not in toolList:
-				toolList.append(i)
-			else:
-				pass
+        for i in items:
+            if i.data(QtCore.Qt.UserRole) in toolListOn:
+                i.setCheckState(QtCore.Qt.CheckState(2))
+            else:
+                pass
 
-		for i in checkListOff:
-			if i in toolList:
-				toolList.remove(i)
-			else:
-				pass
+        toolListWidget.blockSignals(False)
 
-		for i in indexList:
-			a = str(i)
-			pie = paramIndexGet.GetString(a).decode("UTF-8")
-			if pie == text:
-				group = paramIndexGet.GetGroup(a)
-				toolList = group.SetString("ToolList", ".,.".join(toolList))
-			else:
-				pass
 
-		buttonList()
+    def onToolListWidget():
+        paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
 
-	toolListWidget.itemChanged.connect(onToolListWidget)
+        text = cBox.currentText()
 
-	buttonUp = QtGui.QToolButton()
-	buttonUp.setArrowType(QtCore.Qt.ArrowType(1))
-	buttonUp.setMinimumHeight(30)
-	buttonUp.setMinimumWidth(30)
+        items = []
+        for index in xrange(toolListWidget.count()):
+            items.append(toolListWidget.item(index))
 
+        checkListOn = []
+        checkListOff = []
+        for i in items:
+            if i.checkState():
+                checkListOn.append(i.data(QtCore.Qt.UserRole))
+            else:
+                checkListOff.append(i.data(QtCore.Qt.UserRole))
 
-	def onButtonUp():
-		currentIndex = buttonListWidget.currentRow()
+        indexList = paramIndexGet.GetString("IndexList")
 
-		if currentIndex != 0:
-			currentItem = buttonListWidget.takeItem(currentIndex)
-			buttonListWidget.insertItem(currentIndex - 1, currentItem)
-			buttonListWidget.setCurrentRow(currentIndex - 1)
+        if indexList:
+            indexList = indexList.split(".,.")
 
-			items = []
-			for index in xrange(buttonListWidget.count()):
-				items.append(buttonListWidget.item(index))
+            temp = []
 
-			toolData = []
-			for i in items:
-				toolData.append(i.data(QtCore.Qt.UserRole))
+            for i in indexList:
+                temp.append(int(i))
 
-			group = getGroup()
+            indexList = temp
+        else:
+            indexList = []
 
-			group.SetString("ToolList", ".,.".join(toolData))
+        toolList = None
 
-		else:
-			pass
+        for i in indexList:
+            a = str(i)
+            pie = paramIndexGet.GetString(a).decode("UTF-8")
+            if pie == text:
+                group = paramIndexGet.GetGroup(a)
+                toolList = group.GetString("ToolList")
+            else:
+                pass
 
-	buttonUp.clicked.connect(onButtonUp)
+        if toolList:
+            toolList = toolList.split(".,.")
+        else:
+            toolList = []
 
-	buttonDown = QtGui.QToolButton()
-	buttonDown.setArrowType(QtCore.Qt.DownArrow)
-	buttonDown.setMinimumHeight(30)
-	buttonDown.setMinimumWidth(30)
+        for i in checkListOn:
+            if i not in toolList:
+                toolList.append(i)
+            else:
+                pass
 
+        for i in checkListOff:
+            if i in toolList:
+                toolList.remove(i)
+            else:
+                pass
 
-	def onButtonDown():
-		currentIndex = buttonListWidget.currentRow()
+        for i in indexList:
+            a = str(i)
+            pie = paramIndexGet.GetString(a).decode("UTF-8")
+            if pie == text:
+                group = paramIndexGet.GetGroup(a)
+                toolList = group.SetString("ToolList", ".,.".join(toolList))
+            else:
+                pass
 
-		if currentIndex != buttonListWidget.count() - 1 and currentIndex != -1:
-			currentItem = buttonListWidget.takeItem(currentIndex)
-			buttonListWidget.insertItem(currentIndex + 1, currentItem)
-			buttonListWidget.setCurrentRow(currentIndex + 1)
+        buttonList()
 
-			items = []
-			for index in xrange(buttonListWidget.count()):
-				items.append(buttonListWidget.item(index))
+    toolListWidget.itemChanged.connect(onToolListWidget)
 
-			toolData = []
-			for i in items:
-				toolData.append(i.data(QtCore.Qt.UserRole))
+    buttonUp = QtGui.QToolButton()
+    buttonUp.setArrowType(QtCore.Qt.ArrowType(1))
+    buttonUp.setMinimumHeight(30)
+    buttonUp.setMinimumWidth(30)
 
-			group = getGroup()
 
-			group.SetString("ToolList", ".,.".join(toolData))
+    def onButtonUp():
+        currentIndex = buttonListWidget.currentRow()
 
-		else:
-			pass
+        if currentIndex != 0:
+            currentItem = buttonListWidget.takeItem(currentIndex)
+            buttonListWidget.insertItem(currentIndex - 1, currentItem)
+            buttonListWidget.setCurrentRow(currentIndex - 1)
 
-	buttonDown.clicked.connect(onButtonDown)
+            items = []
+            for index in xrange(buttonListWidget.count()):
+                items.append(buttonListWidget.item(index))
 
-	vertexItem = QtGui.QTableWidgetItem()
-	vertexItem.setText("Vertex")
-	vertexItem.setToolTip("Set desired operator and vertex number")
-	vertexItem.setFlags(QtCore.Qt.ItemIsEnabled)
+            toolData = []
+            for i in items:
+                toolData.append(i.data(QtCore.Qt.UserRole))
 
-	edgeItem = QtGui.QTableWidgetItem()
-	edgeItem.setText("Edge")
-	edgeItem.setToolTip("Set desired operator and edge number")
-	edgeItem.setFlags(QtCore.Qt.ItemIsEnabled)
+            group = getGroup()
 
-	faceItem = QtGui.QTableWidgetItem()
-	faceItem.setText("Face")
-	faceItem.setToolTip("Set desired operator and face number")
-	faceItem.setFlags(QtCore.Qt.ItemIsEnabled)
+            group.SetString("ToolList", ".,.".join(toolData))
 
-	objectItem = QtGui.QTableWidgetItem()
-	objectItem.setText("Object")
-	objectItem.setToolTip("Set desired operator and object number")
-	objectItem.setFlags(QtCore.Qt.ItemIsEnabled)
+        else:
+            pass
 
+    buttonUp.clicked.connect(onButtonUp)
 
-	def comboBox(TopoType):
-		signList = ["<", "<=", "==", "!=", ">", ">="]
+    buttonDown = QtGui.QToolButton()
+    buttonDown.setArrowType(QtCore.Qt.DownArrow)
+    buttonDown.setMinimumHeight(30)
+    buttonDown.setMinimumWidth(30)
 
-		model = QtGui.QStandardItemModel()
 
-		for i in signList:
-			item = QtGui.QStandardItem()
-			item.setText(i)
-			item.setData(TopoType, QtCore.Qt.UserRole)
+    def onButtonDown():
+        currentIndex = buttonListWidget.currentRow()
 
-			model.setItem(signList.index(i), 0, item)
+        if currentIndex != buttonListWidget.count() - 1 and currentIndex != -1:
+            currentItem = buttonListWidget.takeItem(currentIndex)
+            buttonListWidget.insertItem(currentIndex + 1, currentItem)
+            buttonListWidget.setCurrentRow(currentIndex + 1)
 
-		comboBoxSign = QtGui.QComboBox()
-		comboBoxSign.setModel(model)
-		comboBoxSign.setStyleSheet(styleCombo)
+            items = []
+            for index in xrange(buttonListWidget.count()):
+                items.append(buttonListWidget.item(index))
 
-		def onCurrentIndexChanged():
-			group = getGroup()
+            toolData = []
+            for i in items:
+                toolData.append(i.data(QtCore.Qt.UserRole))
 
-			groupContext = group.GetGroup("Context")
-			text = comboBoxSign.currentText()
-			topo = comboBoxSign.itemData(comboBoxSign.currentIndex(),
-										 QtCore.Qt.UserRole)
-			groupContext.SetString(topo, text)
+            group = getGroup()
 
-			contextList()
+            group.SetString("ToolList", ".,.".join(toolData))
 
-		comboBoxSign.currentIndexChanged.connect(onCurrentIndexChanged)
+        else:
+            pass
 
-		return comboBoxSign
+    buttonDown.clicked.connect(onButtonDown)
 
-	vertexComboBox = comboBox("VertexSign")
-	edgeComboBox = comboBox("EdgeSign")
-	faceComboBox = comboBox("FaceSign")
-	objectComboBox = comboBox("ObjectSign")
+    vertexItem = QtGui.QTableWidgetItem()
+    vertexItem.setText("Vertex")
+    vertexItem.setToolTip("Set desired operator and vertex number")
+    vertexItem.setFlags(QtCore.Qt.ItemIsEnabled)
 
+    edgeItem = QtGui.QTableWidgetItem()
+    edgeItem.setText("Edge")
+    edgeItem.setToolTip("Set desired operator and edge number")
+    edgeItem.setFlags(QtCore.Qt.ItemIsEnabled)
 
-	def spinBox(TopoValue):
+    faceItem = QtGui.QTableWidgetItem()
+    faceItem.setText("Face")
+    faceItem.setToolTip("Set desired operator and face number")
+    faceItem.setFlags(QtCore.Qt.ItemIsEnabled)
 
-		spinBox = QtGui.QSpinBox()
-		spinBox.setFrame(False)
+    objectItem = QtGui.QTableWidgetItem()
+    objectItem.setText("Object")
+    objectItem.setToolTip("Set desired operator and object number")
+    objectItem.setFlags(QtCore.Qt.ItemIsEnabled)
 
-		def onSpinBox():
-			group = getGroup()
 
-			groupContext = group.GetGroup("Context")
-			value = spinBox.value()
-			groupContext.SetInt(TopoValue, value)
+    def comboBox(TopoType):
+        signList = ["<", "<=", "==", "!=", ">", ">="]
 
-			contextList()
+        model = QtGui.QStandardItemModel()
 
-		spinBox.valueChanged.connect(onSpinBox)
+        for i in signList:
+            item = QtGui.QStandardItem()
+            item.setText(i)
+            item.setData(TopoType, QtCore.Qt.UserRole)
 
-		return spinBox
+            model.setItem(signList.index(i), 0, item)
 
-	vertexSpin = spinBox("VertexValue")
-	edgeSpin = spinBox("EdgeValue")
-	faceSpin = spinBox("FaceValue")
-	objectSpin = spinBox("ObjectValue")
+        comboBoxSign = QtGui.QComboBox()
+        comboBoxSign.setModel(model)
+        comboBoxSign.setStyleSheet(styleCombo)
 
-	labelContext = QtGui.QLabel("Enable")
-	checkContext = QtGui.QCheckBox()
+        def onCurrentIndexChanged():
+            group = getGroup()
 
+            groupContext = group.GetGroup("Context")
+            text = comboBoxSign.currentText()
+            topo = comboBoxSign.itemData(comboBoxSign.currentIndex(),
+                                         QtCore.Qt.UserRole)
+            groupContext.SetString(topo, text)
 
-	def setCheckContext():
+            contextList()
 
-		group = getGroup()
-		groupContext = group.GetGroup("Context")
+        comboBoxSign.currentIndexChanged.connect(onCurrentIndexChanged)
 
-		if groupContext.GetBool("Enabled"):
-			checkContext.setChecked(True)
-			contextTable.setEnabled(True)
-			resetButton.setEnabled(True)
-		else:
-			checkContext.setChecked(False)
-			contextTable.setEnabled(False)
-			resetButton.setEnabled(False)
+        return comboBoxSign
 
-		contextList()
+    vertexComboBox = comboBox("VertexSign")
+    edgeComboBox = comboBox("EdgeSign")
+    faceComboBox = comboBox("FaceSign")
+    objectComboBox = comboBox("ObjectSign")
 
 
-	def onCheckContext():
+    def spinBox(TopoValue):
 
-		setDefaults()
+        spinBox = QtGui.QSpinBox()
+        spinBox.setFrame(False)
 
-		group = getGroup()
-		groupContext = group.GetGroup("Context")
+        def onSpinBox():
+            group = getGroup()
 
-		if checkContext.isChecked():
-			contextTable.setEnabled(True)
-			resetButton.setEnabled(True)
+            groupContext = group.GetGroup("Context")
+            value = spinBox.value()
+            groupContext.SetInt(TopoValue, value)
 
-			groupContext.SetBool("Enabled", 1)
+            contextList()
 
-		else:
-			contextTable.setEnabled(False)
-			resetButton.setEnabled(False)
+        spinBox.valueChanged.connect(onSpinBox)
 
-			groupContext.SetBool("Enabled", 0)
+        return spinBox
 
-		contextList()
+    vertexSpin = spinBox("VertexValue")
+    edgeSpin = spinBox("EdgeValue")
+    faceSpin = spinBox("FaceValue")
+    objectSpin = spinBox("ObjectValue")
 
-	checkContext.stateChanged.connect(onCheckContext)
+    labelContext = QtGui.QLabel("Enable")
+    checkContext = QtGui.QCheckBox()
 
-	contextTable = QtGui.QTableWidget(4, 3)
-	contextTable.setMaximumHeight(120)
-	contextTable.setFrameStyle(QtGui.QFrame.NoFrame)
-	contextTable.verticalHeader().setVisible(False)
-	contextTable.horizontalHeader().setVisible(False)
-	contextTable.verticalHeader().setResizeMode(QtGui.QHeaderView.Stretch)
-	contextTable.horizontalHeader().setResizeMode(QtGui.QHeaderView.Stretch)
 
-	contextTable.setItem(0, 0, vertexItem)
-	contextTable.setCellWidget(0, 1, vertexComboBox)
-	contextTable.setCellWidget(0, 2, vertexSpin)
+    def setCheckContext():
 
-	contextTable.setItem(1, 0, edgeItem)
-	contextTable.setCellWidget(1, 1, edgeComboBox)
-	contextTable.setCellWidget(1, 2, edgeSpin)
+        group = getGroup()
+        groupContext = group.GetGroup("Context")
 
-	contextTable.setItem(2, 0, faceItem)
-	contextTable.setCellWidget(2, 1, faceComboBox)
-	contextTable.setCellWidget(2, 2, faceSpin)
+        if groupContext.GetBool("Enabled"):
+            checkContext.setChecked(True)
+            contextTable.setEnabled(True)
+            resetButton.setEnabled(True)
+        else:
+            checkContext.setChecked(False)
+            contextTable.setEnabled(False)
+            resetButton.setEnabled(False)
 
-	contextTable.setItem(3, 0, objectItem)
-	contextTable.setCellWidget(3, 1, objectComboBox)
-	contextTable.setCellWidget(3, 2, objectSpin)
+        contextList()
 
-	resetButton = QtGui.QToolButton()
-	resetButton.setMinimumHeight(30)
-	resetButton.setMinimumWidth(30)
-	resetButton.setText(u'\u27F3')
 
-	resetButton.setEnabled(False)
+    def onCheckContext():
 
+        setDefaults()
 
-	def onResetButton():
+        group = getGroup()
+        groupContext = group.GetGroup("Context")
 
-		group = getGroup()
-		group.RemGroup("Context")
-		setDefaults()
-		setCheckContext()
+        if checkContext.isChecked():
+            contextTable.setEnabled(True)
+            resetButton.setEnabled(True)
 
-	resetButton.clicked.connect(onResetButton)
+            groupContext.SetBool("Enabled", 1)
 
+        else:
+            contextTable.setEnabled(False)
+            resetButton.setEnabled(False)
 
-	def setDefaults():
-		group = getGroup()
-		groupContext = group.GetGroup("Context")
+            groupContext.SetBool("Enabled", 0)
 
-		vertexSign = groupContext.GetString("VertexSign")
+        contextList()
 
-		if vertexSign in sign:
-			pass
-		else:
-			groupContext.SetString("VertexSign", "==")
-			vertexSign = "=="
+    checkContext.stateChanged.connect(onCheckContext)
 
-		for i in range(vertexComboBox.count()):
-			if vertexComboBox.itemText(i) == vertexSign:
-				vertexComboBox.setCurrentIndex(i)
-			else:
-				pass
+    contextTable = QtGui.QTableWidget(4, 3)
+    contextTable.setMaximumHeight(120)
+    contextTable.setFrameStyle(QtGui.QFrame.NoFrame)
+    contextTable.verticalHeader().setVisible(False)
+    contextTable.horizontalHeader().setVisible(False)
+    contextTable.verticalHeader().setResizeMode(QtGui.QHeaderView.Stretch)
+    contextTable.horizontalHeader().setResizeMode(QtGui.QHeaderView.Stretch)
 
-		vertexValue = groupContext.GetInt("VertexValue")
+    contextTable.setItem(0, 0, vertexItem)
+    contextTable.setCellWidget(0, 1, vertexComboBox)
+    contextTable.setCellWidget(0, 2, vertexSpin)
 
-		if vertexValue:
-			pass
-		else:
-			a = groupContext.GetInt("VertexValue", True)
-			b = groupContext.GetInt("VertexValue", False)
+    contextTable.setItem(1, 0, edgeItem)
+    contextTable.setCellWidget(1, 1, edgeComboBox)
+    contextTable.setCellWidget(1, 2, edgeSpin)
 
-			if a == b:
-				groupContext.SetInt("VertexValue", 0)
-				vertexValue = 0
-			else:
-				groupContext.SetInt("VertexValue", 10)
-				vertexValue = 10
+    contextTable.setItem(2, 0, faceItem)
+    contextTable.setCellWidget(2, 1, faceComboBox)
+    contextTable.setCellWidget(2, 2, faceSpin)
 
-		vertexSpin.setValue(vertexValue)
+    contextTable.setItem(3, 0, objectItem)
+    contextTable.setCellWidget(3, 1, objectComboBox)
+    contextTable.setCellWidget(3, 2, objectSpin)
 
-		edgeSign = groupContext.GetString("EdgeSign")
+    resetButton = QtGui.QToolButton()
+    resetButton.setMinimumHeight(30)
+    resetButton.setMinimumWidth(30)
+    resetButton.setText(u'\u27F3')
 
-		if edgeSign in sign:
-			pass
-		else:
-			groupContext.SetString("EdgeSign", "==")
-			edgeSign = "=="
+    resetButton.setEnabled(False)
 
-		for i in range(edgeComboBox.count()):
-			if edgeComboBox.itemText(i) == edgeSign:
-				edgeComboBox.setCurrentIndex(i)
-			else:
-				pass
 
-		edgeValue = groupContext.GetInt("EdgeValue")
+    def onResetButton():
 
-		if edgeValue:
-			pass
-		else:
-			a = groupContext.GetInt("EdgeValue", True)
-			b = groupContext.GetInt("EdgeValue", False)
+        group = getGroup()
+        group.RemGroup("Context")
+        setDefaults()
+        setCheckContext()
 
-			if a == b:
-				groupContext.SetInt("EdgeValue", 0)
-				edgeValue = 0
-			else:
-				groupContext.SetInt("EdgeValue", 10)
-				edgeValue = 10
+    resetButton.clicked.connect(onResetButton)
 
-		edgeSpin.setValue(edgeValue)
 
-		faceSign = groupContext.GetString("FaceSign")
+    def setDefaults():
+        group = getGroup()
+        groupContext = group.GetGroup("Context")
 
-		if faceSign in sign:
-			pass
-		else:
-			groupContext.SetString("FaceSign", "==")
-			faceSign = "=="
+        vertexSign = groupContext.GetString("VertexSign")
 
-		for i in range(faceComboBox.count()):
-			if faceComboBox.itemText(i) == faceSign:
-				faceComboBox.setCurrentIndex(i)
-			else:
-				pass
+        if vertexSign in sign:
+            pass
+        else:
+            groupContext.SetString("VertexSign", "==")
+            vertexSign = "=="
 
-		faceValue = groupContext.GetInt("FaceValue")
+        for i in range(vertexComboBox.count()):
+            if vertexComboBox.itemText(i) == vertexSign:
+                vertexComboBox.setCurrentIndex(i)
+            else:
+                pass
 
-		if faceValue:
-			pass
-		else:
-			a = groupContext.GetInt("FaceValue", True)
-			b = groupContext.GetInt("FaceValue", False)
+        vertexValue = groupContext.GetInt("VertexValue")
 
-			if a == b:
-				groupContext.SetInt("FaceValue", 0)
-				faceValue = 0
-			else:
-				groupContext.SetInt("FaceValue", 10)
-				faceValue = 10
+        if vertexValue:
+            pass
+        else:
+            a = groupContext.GetInt("VertexValue", True)
+            b = groupContext.GetInt("VertexValue", False)
 
-		faceSpin.setValue(faceValue)
+            if a == b:
+                groupContext.SetInt("VertexValue", 0)
+                vertexValue = 0
+            else:
+                groupContext.SetInt("VertexValue", 10)
+                vertexValue = 10
 
-		objectSign = groupContext.GetString("ObjectSign")
+        vertexSpin.setValue(vertexValue)
 
-		if objectSign in sign:
-			pass
-		else:
-			groupContext.SetString("ObjectSign", "==")
-			objectSign = "=="
+        edgeSign = groupContext.GetString("EdgeSign")
 
-		for i in range(objectComboBox.count()):
-			if objectComboBox.itemText(i) == objectSign:
-				objectComboBox.setCurrentIndex(i)
-			else:
-				pass
+        if edgeSign in sign:
+            pass
+        else:
+            groupContext.SetString("EdgeSign", "==")
+            edgeSign = "=="
 
-		objectValue = groupContext.GetInt("ObjectValue")
+        for i in range(edgeComboBox.count()):
+            if edgeComboBox.itemText(i) == edgeSign:
+                edgeComboBox.setCurrentIndex(i)
+            else:
+                pass
 
-		if objectValue:
-			pass
-		else:
-			a = groupContext.GetInt("ObjectValue", True)
-			b = groupContext.GetInt("ObjectValue", False)
+        edgeValue = groupContext.GetInt("EdgeValue")
 
-			if a == b:
-				groupContext.SetInt("ObjectValue", 0)
-				objectValue = 0
-			else:
-				groupContext.SetInt("ObjectValue", 10)
-				objectValue = 10
+        if edgeValue:
+            pass
+        else:
+            a = groupContext.GetInt("EdgeValue", True)
+            b = groupContext.GetInt("EdgeValue", False)
 
-		objectSpin.setValue(objectValue)
+            if a == b:
+                groupContext.SetInt("EdgeValue", 0)
+                edgeValue = 0
+            else:
+                groupContext.SetInt("EdgeValue", 10)
+                edgeValue = 10
 
-		valueRadius = group.GetInt("Radius")
+        edgeSpin.setValue(edgeValue)
 
-		if valueRadius:
-			pass
-		else:
-			valueRadius = 100
-			group.SetInt("Radius", valueRadius)
+        faceSign = groupContext.GetString("FaceSign")
 
-		spinRadius.setValue(valueRadius)
+        if faceSign in sign:
+            pass
+        else:
+            groupContext.SetString("FaceSign", "==")
+            faceSign = "=="
 
-		valueButton = group.GetInt("Button")
+        for i in range(faceComboBox.count()):
+            if faceComboBox.itemText(i) == faceSign:
+                faceComboBox.setCurrentIndex(i)
+            else:
+                pass
 
-		if valueButton:
-			pass
-		else:
-			valueButton = 24
-			group.SetInt("Button", valueButton)
+        faceValue = groupContext.GetInt("FaceValue")
 
-		spinButton.setValue(valueButton)
+        if faceValue:
+            pass
+        else:
+            a = groupContext.GetInt("FaceValue", True)
+            b = groupContext.GetInt("FaceValue", False)
 
-		contextList()
+            if a == b:
+                groupContext.SetInt("FaceValue", 0)
+                faceValue = 0
+            else:
+                groupContext.SetInt("FaceValue", 10)
+                faceValue = 10
 
+        faceSpin.setValue(faceValue)
 
-	def setDefaultPie():
-		paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
-		paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
-		indexList = paramIndexGet.GetString("IndexList")
+        objectSign = groupContext.GetString("ObjectSign")
 
-		defaultTools = ["Std_ViewTop",
-						"Std_New",
-						"Std_ViewRight",
-						"Std_ViewBoxZoom",
-						"Std_ViewBottom",
-						"Std_ViewAxo",
-						"Std_ViewLeft",
-						"Std_ViewScreenShot"]
+        if objectSign in sign:
+            pass
+        else:
+            groupContext.SetString("ObjectSign", "==")
+            objectSign = "=="
 
-		if indexList:
-			indexList = indexList.split(".,.")
+        for i in range(objectComboBox.count()):
+            if objectComboBox.itemText(i) == objectSign:
+                objectComboBox.setCurrentIndex(i)
+            else:
+                pass
 
-			temp = []
+        objectValue = groupContext.GetInt("ObjectValue")
 
-			for i in indexList:
-				temp.append(int(i))
+        if objectValue:
+            pass
+        else:
+            a = groupContext.GetInt("ObjectValue", True)
+            b = groupContext.GetInt("ObjectValue", False)
 
-			indexList = temp
-		else:
-			indexList = []
+            if a == b:
+                groupContext.SetInt("ObjectValue", 0)
+                objectValue = 0
+            else:
+                groupContext.SetInt("ObjectValue", 10)
+                objectValue = 10
 
-		if 0 in indexList:
-			pass
-		else:
-			indexList.append(0)
+        objectSpin.setValue(objectValue)
 
-			temp = []
+        valueRadius = group.GetInt("Radius")
 
-			for i in indexList:
-				temp.append(str(i))
+        if valueRadius:
+            pass
+        else:
+            valueRadius = 100
+            group.SetInt("Radius", valueRadius)
 
-			indexList = temp
+        spinRadius.setValue(valueRadius)
 
-			paramIndexGet.SetString("0", "Default")
-			paramIndexGet.SetString("IndexList", ".,.".join(indexList))
+        valueButton = group.GetInt("Button")
 
-			group = paramIndexGet.GetGroup("0")
-			group.SetString("ToolList", ".,.".join(defaultTools))
+        if valueButton:
+            pass
+        else:
+            valueButton = 32
+            group.SetInt("Button", valueButton)
 
-		paramGet.SetBool("ToolBar", False)
-		paramGet.SetString("CurrentPie", "Default")
+        spinButton.setValue(valueButton)
 
+        contextList()
 
-	def onControl():
 
-		for i in mw.findChildren(QtGui.QDialog):
-			if i.objectName() == "PieMenuPreferences":
-				i.deleteLater()
-			else:
-				pass
+    def setDefaultPie():
+        paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+        paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
+        indexList = paramIndexGet.GetString("IndexList")
 
-		tabs = QtGui.QTabWidget()
+        defaultTools = ["Std_ViewTop",
+                        "Std_New",
+                        "Std_ViewRight",
+                        "Std_BoxSelection",
+                        "Std_ViewBottom",
+                        "Std_ViewAxo",
+                        "Std_ViewLeft",
+                        "Std_ViewScreenShot"]
 
-		pieMenuTab = QtGui.QWidget()
-		pieMenuTabLayout = QtGui.QVBoxLayout()
-		pieMenuTab.setLayout(pieMenuTabLayout)
+        if indexList:
+            indexList = indexList.split(".,.")
 
-		layoutAddRemove = QtGui.QHBoxLayout()
-		layoutAddRemove.addWidget(cBox)
-		layoutAddRemove.addWidget(buttonAddPieMenu)
-		layoutAddRemove.addWidget(buttonRemovePieMenu)
+            temp = []
 
-		layoutRadius = QtGui.QHBoxLayout()
-		layoutRadius.addWidget(labelRadius)
-		layoutRadius.addStretch(1)
-		layoutRadius.addWidget(spinRadius)
+            for i in indexList:
+                temp.append(int(i))
 
-		layoutButton = QtGui.QHBoxLayout()
-		layoutButton.addWidget(labelButton)
-		layoutButton.addStretch(1)
-		layoutButton.addWidget(spinButton)
+            indexList = temp
+        else:
+            indexList = []
 
-		pieMenuTabLayout.insertLayout(0, layoutAddRemove)
-		pieMenuTabLayout.insertSpacing(1, 24)
-		pieMenuTabLayout.insertLayout(2, layoutRadius)
-		pieMenuTabLayout.insertLayout(3, layoutButton)
-		pieMenuTabLayout.addStretch(0)
+        if 0 in indexList:
+            pass
+        else:
+            indexList.append(0)
 
-		contextTab = QtGui.QWidget()
-		contextTabLayout = QtGui.QVBoxLayout()
-		contextTab.setLayout(contextTabLayout)
+            temp = []
 
-		layoutCheckContext = QtGui.QHBoxLayout()
-		layoutCheckContext.addWidget(labelContext)
-		layoutCheckContext.addStretch(1)
-		layoutCheckContext.addWidget(checkContext)
+            for i in indexList:
+                temp.append(str(i))
 
-		resetLayout = QtGui.QHBoxLayout()
-		resetLayout.addStretch(1)
-		resetLayout.addWidget(resetButton)
+            indexList = temp
 
-		contextTabLayout.insertLayout(0, layoutCheckContext)
-		contextTabLayout.addWidget(contextTable)
-		contextTabLayout.insertLayout(2, resetLayout)
-		contextTabLayout.addStretch(1)
+            paramIndexGet.SetString("0", "Default")
+            paramIndexGet.SetString("IndexList", ".,.".join(indexList))
 
-		tabs.addTab(pieMenuTab, "PieMenu")
-		tabs.addTab(toolListWidget, "Tools")
-		tabs.addTab(contextTab, "Context")
+            group = paramIndexGet.GetGroup("0")
+            group.SetString("ToolList", ".,.".join(defaultTools))
 
-		pieButtons = QtGui.QWidget()
-		pieButtonsLayout = QtGui.QVBoxLayout()
-		pieButtons.setLayout(pieButtonsLayout)
-		pieButtonsLayout.setContentsMargins(0, 0, 0, 0)
-		pieButtonsLayout.addWidget(buttonListWidget)
+        paramGet.SetBool("ToolBar", False)
+        paramGet.SetString("CurrentPie", "Default")
 
-		buttonsLayout = QtGui.QHBoxLayout()
-		buttonsLayout.addStretch(1)
-		buttonsLayout.addWidget(buttonDown)
-		buttonsLayout.addWidget(buttonUp)
+        group = getGroup(mode=1)
 
-		pieButtonsLayout.insertLayout(1, buttonsLayout)
+        group.SetInt("Radius", 100)
+        group.SetInt("Button", 32)
 
-		vSplitter = QtGui.QSplitter()
-		vSplitter.insertWidget(0, pieButtons)
-		vSplitter.insertWidget(0, tabs)
+    def onControl():
 
-		preferencesWidget = QtGui.QWidget()
-		preferencesLayout = QtGui.QHBoxLayout()
-		preferencesLayout.setContentsMargins(0, 0, 0, 0)
-		preferencesWidget.setLayout(preferencesLayout)
-		preferencesLayout.addWidget(vSplitter)
+        for i in mw.findChildren(QtGui.QDialog):
+            if i.objectName() == "PieMenuPreferences":
+                i.deleteLater()
+            else:
+                pass
 
-		pieMenuDialog = QtGui.QDialog(mw)
-		pieMenuDialog.resize(800, 450)
-		pieMenuDialog.setObjectName("PieMenuPreferences")
-		pieMenuDialog.setWindowTitle("PieMenu")
-		pieMenuDialogLayout = QtGui.QVBoxLayout()
-		pieMenuDialog.setLayout(pieMenuDialogLayout)
-		pieMenuDialog.show()
+        tabs = QtGui.QTabWidget()
 
+        pieMenuTab = QtGui.QWidget()
+        pieMenuTabLayout = QtGui.QVBoxLayout()
+        pieMenuTab.setLayout(pieMenuTabLayout)
 
-		pieMenuDialogLayout.addWidget(preferencesWidget)
+        layoutAddRemove = QtGui.QHBoxLayout()
+        layoutAddRemove.addWidget(cBox)
+        layoutAddRemove.addWidget(buttonAddPieMenu)
+        layoutAddRemove.addWidget(buttonRemovePieMenu)
 
-		cBoxUpdate()
-		buttonList()
-		toolList()
-		setDefaults()
-		setCheckContext()
+        layoutRadius = QtGui.QHBoxLayout()
+        layoutRadius.addWidget(labelRadius)
+        layoutRadius.addStretch(1)
+        layoutRadius.addWidget(spinRadius)
 
-	mw = Gui.getMainWindow()
+        layoutButton = QtGui.QHBoxLayout()
+        layoutButton.addWidget(labelButton)
+        layoutButton.addStretch(1)
+        layoutButton.addWidget(spinButton)
 
-	start = True
+        pieMenuTabLayout.insertLayout(0, layoutAddRemove)
+        pieMenuTabLayout.insertSpacing(1, 24)
+        pieMenuTabLayout.insertLayout(2, layoutRadius)
+        pieMenuTabLayout.insertLayout(3, layoutButton)
+        pieMenuTabLayout.addStretch(0)
 
-	for act in mw.findChildren(QtGui.QAction):
-		if act.objectName() == "PieMenuShortCut":
-			start = False
-		else:
-			pass
+        contextTab = QtGui.QWidget()
+        contextTabLayout = QtGui.QVBoxLayout()
+        contextTab.setLayout(contextTabLayout)
 
-	if start:
-		contextAll = {}
-		contextList()
-		selObserver = SelObserver()
-		addObserver()
+        layoutCheckContext = QtGui.QHBoxLayout()
+        layoutCheckContext.addWidget(labelContext)
+        layoutCheckContext.addStretch(1)
+        layoutCheckContext.addWidget(checkContext)
 
-		PieMenuInstance = PieMenu()
+        resetLayout = QtGui.QHBoxLayout()
+        resetLayout.addStretch(1)
+        resetLayout.addWidget(resetButton)
 
-		actionKey = QtGui.QAction(mw)
-		actionKey.setObjectName("PieMenuShortCut")
-		
-		
-		paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
-		key = paramGet.GetString("KeySequence","TAB")
+        contextTabLayout.insertLayout(0, layoutCheckContext)
+        contextTabLayout.addWidget(contextTable)
+        contextTabLayout.insertLayout(2, resetLayout)
+        contextTabLayout.addStretch(1)
 
-		actionKey.setShortcut(QtGui.QKeySequence(key))
-		actionKey.triggered.connect(PieMenuInstance.showAtMouse)
-		mw.addAction(actionKey)
+        tabs.addTab(pieMenuTab, "PieMenu")
+        tabs.addTab(toolListWidget, "Tools")
+        tabs.addTab(contextTab, "Context")
 
-		updateCommands()
+        pieButtons = QtGui.QWidget()
+        pieButtonsLayout = QtGui.QVBoxLayout()
+        pieButtons.setLayout(pieButtonsLayout)
+        pieButtonsLayout.setContentsMargins(0, 0, 0, 0)
+        pieButtonsLayout.addWidget(buttonListWidget)
 
-		PieMenuInstance.showAtMouse()
-	else:
-		pass
+        buttonsLayout = QtGui.QHBoxLayout()
+        buttonsLayout.addStretch(1)
+        buttonsLayout.addWidget(buttonDown)
+        buttonsLayout.addWidget(buttonUp)
+
+        pieButtonsLayout.insertLayout(1, buttonsLayout)
+
+        vSplitter = QtGui.QSplitter()
+        vSplitter.insertWidget(0, pieButtons)
+        vSplitter.insertWidget(0, tabs)
+
+        preferencesWidget = QtGui.QWidget()
+        preferencesLayout = QtGui.QHBoxLayout()
+        preferencesLayout.setContentsMargins(0, 0, 0, 0)
+        preferencesWidget.setLayout(preferencesLayout)
+        preferencesLayout.addWidget(vSplitter)
+
+        pieMenuDialog = QtGui.QDialog(mw)
+        pieMenuDialog.resize(800, 450)
+        pieMenuDialog.setObjectName("PieMenuPreferences")
+        pieMenuDialog.setWindowTitle("PieMenu")
+        pieMenuDialogLayout = QtGui.QVBoxLayout()
+        pieMenuDialog.setLayout(pieMenuDialogLayout)
+        pieMenuDialog.show()
+
+        pieMenuDialogLayout.addWidget(preferencesWidget)
+
+        cBoxUpdate()
+        buttonList()
+        toolList()
+        setDefaults()
+        setCheckContext()
+
+    mw = Gui.getMainWindow()
+
+    start = True
+
+    for act in mw.findChildren(QtGui.QAction):
+        if act.objectName() == "PieMenuShortCut":
+            start = False
+        else:
+            pass
+
+    if start:
+
+        compositingManager = True
+        windowShadow = False
+
+        if platform.system() == "Linux":
+            if QtGui.QX11Info.isCompositingManagerRunning():
+                windowShadow = True
+            else:
+                compositingManager = False
+        else:
+            pass
+
+        if platform.system() == "Windows":
+            windowShadow = True
+        else:
+            pass
+
+        contextAll = {}
+        contextList()
+        selObserver = SelObserver()
+        addObserver()
+
+        PieMenuInstance = PieMenu()
+
+        actionKey = QtGui.QAction(mw)
+        actionKey.setObjectName("PieMenuShortCut")
+
+        paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
+        key = paramGet.GetString("KeySequence","TAB")
+
+        actionKey.setShortcut(QtGui.QKeySequence(key))
+
+        actionKey.triggered.connect(PieMenuInstance.showAtMouse)
+        mw.addAction(actionKey)
+
+    else:
+        pass
 
 pieMenuStart()
-
-

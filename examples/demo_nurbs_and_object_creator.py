@@ -25,8 +25,9 @@ def getPieSignatures():
 def getSigIndex(sig):
 	paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
 	indexList = paramIndexGet.GetString("IndexList")
-#	print indexList
+	print indexList
 	index=indexList.split('.,.')
+	
 	for ix in index:
 		if sig == paramIndexGet.GetString(ix) : return ix
 	ixint=[int(ix) for ix in index]
@@ -139,7 +140,7 @@ class dummyTask(PieSingleTask):
 	def runpre(self):
 		s=' '.join([str(self.action),'\n', str(self.action.text()),':',str(self.action.toolTip())])
 		FreeCAD.Console.PrintWarning("\n" +s +"\n\n"+ "NOT yet implemented!\n")
-		setPos(x, y)
+		print s
 
 
 class Pie(object):
@@ -148,7 +149,7 @@ class Pie(object):
 	def __init__(self,pieName,pieces=[]):
 
 
-
+		if pieName=='': pieName='No Selection'
 		number=getSigIndex(pieName)
 		self.pieName=pieName
 #		mw = Gui.getMainWindow()
@@ -169,7 +170,12 @@ class Pie(object):
 
 		paramIndexGet.SetString(str(number), self.pieName)
 
-		paramIndexGet.SetString("IndexList", indexList + ".,."+str(number))
+		print indexList
+		index=indexList.split('.,.')
+		print index
+
+		if str(number) not in index:
+			paramIndexGet.SetString("IndexList", indexList + ".,."+str(number))
 		paramGet.SetString("CurrentPie",self.pieName)
 
 		group = paramIndexGet.GetGroup(str(number))
