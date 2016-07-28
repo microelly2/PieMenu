@@ -24,49 +24,10 @@
 # http://www.freecadweb.org/wiki/index.php?title=Code_snippets
 
 
-##+
-import context
-reload(context)
-
-def getPieSignatures():
-    paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
-    indexList = paramIndexGet.GetString("IndexList")
-#   print indexList
-    index=indexList.split('.,.')
-    sigs=[paramIndexGet.GetString(ix) for ix in index]
-    return sigs
-
-def getSigIndex(sig):
-    paramIndexGet = App.ParamGet("User parameter:BaseApp/PieMenu/Index")
-    indexList = paramIndexGet.GetString("IndexList")
-#   print indexList
-    index=indexList.split('.,.')
-    for ix in index:
-        if sig == paramIndexGet.GetString(ix) : return ix
-    ixint=[int(ix) for ix in index]
-    newix=str(max(ixint)+1)
-    print "new idex created", newix
-    return newix 
-
-
-def activatePieMenu(sig):
-
-        if sig=='': sig='No Selection'
-        paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
-        if sig in getPieSignatures():
-            paramGet.SetString("CurrentPie",sig)
-        else:
-            print "signature >" + sig + "< not found, use Default Pie Menu!"
-            paramGet.SetString("CurrentPie",'Default')
-##-
-
 def pieMenuStart():
-##+
-    global activatePieMenu
-    global context
-    global getPieSignatures
-    global getSigIndex
-##-
+
+
+
     import math
     import operator
     import platform
@@ -408,7 +369,6 @@ def pieMenuStart():
 ##+
             try:
                 self.defaultAction().onEnter()
-                print "PieAction.onEnter executed"
             except:
                 pass
 ##-
@@ -428,22 +388,8 @@ def pieMenuStart():
             else:
                 pass
 
-##+
-        def leaveEvent(self, event):
-            paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
-            mode = paramGet.GetString("TriggerMode")
-            try:
-                self.defaultAction().onLeave()
-                print "PieAction.onLeave executed"
-            except:
-                pass
 
-            if self.defaultAction().isEnabled() and mode == "Hover":
-                PieMenuInstance.hide()
-                self.defaultAction().trigger()
-            else:
-                pass
-##-
+
 
 
     class PieMenu:
@@ -575,7 +521,9 @@ def pieMenuStart():
         def showAtMouse(self):
             paramGet = App.ParamGet("User parameter:BaseApp/PieMenu")
 ##+
-            activatePieMenu(context.sig())
+            import piemenu.context
+            reload(piemenu.context)
+            piemenu.context.activatePieMenu(piemenu.context.sig())
 ##-
             contextPhase = paramGet.GetBool("ContextPhase")
 
